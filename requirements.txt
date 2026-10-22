@@ -1,0 +1,7 @@
+# InsightIQ runtime dependencies. Target: Python 3.11+
+# Direct dependencies only; transitive packages are resolved by pip.
+# pydantic-settings provides typed settings and .env loading.
+fastapi==0.156.7
+uvicorn[standard]==0.54.0
+pydantic==2.14.1
+pydantic-settings==2.16.1
