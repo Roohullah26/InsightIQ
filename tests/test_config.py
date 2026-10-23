@@ -2,7 +2,12 @@
 
 import pytest
 from pydantic import ValidationError
-from app.core.config import Settings
+from app.core.config import (
+    Settings,
+    _DEFAULT_ENV_FILE,
+    _REPO_ROOT,
+    get_settings,
+)
 
 
 def test_default_settings(monkeypatch):
@@ -86,3 +91,40 @@ def test_env_file_loading(tmp_path):
     assert settings.environment == "production"
     assert settings.debug is False
     assert settings.api_v1_prefix == "/api/v1"
+
+
+@pytest.mark.parametrize("env", ["development", "staging", "production"])
+def test_valid_environments(monkeypatch, env):
+    """Verify valid environment Literal values are accepted."""
+    monkeypatch.setenv("INSIGHTIQ_ENVIRONMENT", env)
+    settings = Settings(_env_file=None)
+    assert settings.environment == env
+
+
+@pytest.mark.parametrize("invalid_env", ["prod", "dev", "test", "local", "invalid"])
+def test_invalid_environment_rejected(monkeypatch, invalid_env):
+    """Verify invalid environment strings are rejected by Literal validation."""
+    monkeypatch.setenv("INSIGHTIQ_ENVIRONMENT", invalid_env)
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
+def test_get_settings_caching():
+    """Verify get_settings returns a cached instance and cache_clear works."""
+    get_settings.cache_clear()
+    s1 = get_settings()
+    s2 = get_settings()
+    assert s1 is s2
+
+    get_settings.cache_clear()
+    s3 = get_settings()
+    assert s3 is not s1
+    assert s3.app_name == s1.app_name
+
+
+def test_default_env_file_anchored_at_repo_root():
+    """Verify _DEFAULT_ENV_FILE is anchored at the repository root."""
+    assert _DEFAULT_ENV_FILE.name == ".env"
+    assert _DEFAULT_ENV_FILE.parent == _REPO_ROOT
+    assert (_REPO_ROOT / "main.py").exists()
+

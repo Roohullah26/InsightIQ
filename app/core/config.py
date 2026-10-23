@@ -1,12 +1,19 @@
 """Application configuration for InsightIQ.
 
 Settings are read from environment variables prefixed with ``INSIGHTIQ_`` and,
-optionally, from a local ``.env`` file. Real environment variables take
-precedence over values in ``.env``. Import the shared ``settings`` instance
-rather than constructing ``Settings`` directly.
+optionally, from a local ``.env`` file anchored at the repository root. Real
+environment variables take precedence over values in ``.env``. Use
+``get_settings()`` (or the shared ``settings`` alias) to access configuration.
 """
 
+from functools import lru_cache
+from pathlib import Path
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_DEFAULT_ENV_FILE = _REPO_ROOT / ".env"
 
 
 class Settings(BaseSettings):
@@ -14,15 +21,22 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="INSIGHTIQ_",
-        env_file=".env",
+        env_file=_DEFAULT_ENV_FILE,
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
     app_name: str = "InsightIQ API"
-    environment: str = "development"
+    environment: Literal["development", "staging", "production"] = "development"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
 
 
-settings = Settings()
+@lru_cache
+def get_settings() -> Settings:
+    """Return a cached instance of application settings."""
+    return Settings()
+
+
+settings: Settings = get_settings()
+
