@@ -32,3 +32,15 @@ def test_static_js_assets_served():
     assert response.status_code == 200
     assert "javascript" in response.headers.get("content-type", "")
     assert "activeDatasetId" in response.text
+
+
+def test_dashboard_includes_open_ended_chat_chips():
+    """Verify GET /dashboard renders open-ended questioning chips and dual-engine badge."""
+    response = client.get("/dashboard")
+    assert response.status_code == 200
+    content = response.text
+    assert "Strategic Reasoning:" in content
+    assert "SWOT analysis" in content
+    assert "Dual-Engine Intelligence" in content
+    assert "suggestion-chip strategic" in content
+

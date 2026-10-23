@@ -114,25 +114,46 @@
       <div class="chat-container">
         <div class="chat-history" id="chat-history">
           <div class="chat-msg bot">
-            <span class="chat-intent-tag">InsightIQ Copilot</span>
-            <div>Welcome! Ask me any analytical question about this dataset (e.g. totals, averages, rankings, correlations, or anomalies).</div>
+            <div style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.5rem;">
+              <span class="chat-intent-tag">InsightIQ Copilot</span>
+              <span class="chat-source-badge source-det">⚡ Dual-Engine Intelligence</span>
+            </div>
+            <div>Welcome! Ask me <strong>any type of question</strong> about this dataset — from exact totals and correlations to open-ended strategic reasoning (e.g. SWOT analysis, growth opportunities, risks, investor pitch briefing, or ELI5 analogies).</div>
           </div>
         </div>
 
-        <div class="chat-suggestions">
-          <button class="suggestion-chip" type="button">What is the total revenue?</button>
-          <button class="suggestion-chip" type="button">Show me revenue by region</button>
-          <button class="suggestion-chip" type="button">What is the top store by revenue?</button>
-          <button class="suggestion-chip" type="button">Are there any outliers in revenue?</button>
-          <button class="suggestion-chip" type="button">How many rows in this dataset?</button>
+        <div class="chat-suggestions-wrapper">
+          <div class="suggestions-row">
+            <span class="suggestions-category-tag">Strategic Reasoning:</span>
+            <div class="chat-suggestions">
+              <button class="suggestion-chip strategic" type="button">Give me a SWOT analysis of this data</button>
+              <button class="suggestion-chip strategic" type="button">What strategic opportunities should we focus on?</button>
+              <button class="suggestion-chip strategic" type="button">What are our key risks and blind spots?</button>
+              <button class="suggestion-chip strategic" type="button">Investor pitch briefing &amp; executive thesis</button>
+              <button class="suggestion-chip strategic" type="button">Why is there variance across segments?</button>
+              <button class="suggestion-chip strategic" type="button">Explain this dataset like I'm 5</button>
+            </div>
+          </div>
+          <div class="suggestions-row">
+            <span class="suggestions-category-tag">Quick Metrics:</span>
+            <div class="chat-suggestions">
+              <button class="suggestion-chip" type="button">What is the total revenue?</button>
+              <button class="suggestion-chip" type="button">Show me revenue by region</button>
+              <button class="suggestion-chip" type="button">What is the top store by revenue?</button>
+              <button class="suggestion-chip" type="button">Are there any outliers in revenue?</button>
+              <button class="suggestion-chip" type="button">Is there a correlation between revenue and profit?</button>
+              <button class="suggestion-chip" type="button">How many rows in this dataset?</button>
+            </div>
+          </div>
         </div>
 
         <div class="chat-input-bar">
-          <input type="text" id="chat-input" class="chat-input" placeholder="Ask a question (e.g. 'Show me average sales by department')...">
+          <input type="text" id="chat-input" class="chat-input" placeholder="Ask any question (e.g. 'Give me a SWOT analysis' or 'Show average sales by region')...">
           <button id="chat-send-btn" class="btn-primary" type="button">Ask IQ</button>
         </div>
       </div>
     </section>
+
 
     <!-- Tab 3: Exploratory Profile -->
     <section id="tab-profile" class="tab-pane" aria-labelledby="btn-tab-profile">

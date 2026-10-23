@@ -11,6 +11,7 @@ QueryIntent = Literal[
     "correlation_inquiry",
     "anomaly_inquiry",
     "general_count",
+    "open_ended_reasoning",
     "unrecognized",
 ]
 
@@ -35,6 +36,10 @@ class NaturalLanguageQueryResponse(BaseModel):
     dataset_id: str = Field(description="Unique dataset identifier")
     query: str = Field(description="Original user inquiry")
     intent: QueryIntent = Field(description="Inferred analytical query intent")
+    source: Literal["ai_model", "deterministic_engine"] = Field(
+        default="deterministic_engine",
+        description="Engine used to answer: 'ai_model' (LLM) or 'deterministic_engine' (local heuristics)",
+    )
     target_metric: str | None = Field(default=None, description="Primary numeric column identified")
     group_by_dimension: str | None = Field(default=None, description="Categorical dimension identified for grouping")
     filter_description: str | None = Field(default=None, description="Human-readable filter condition if applied")
@@ -44,3 +49,4 @@ class NaturalLanguageQueryResponse(BaseModel):
         description="Structured tabular rows backing the natural language answer",
     )
     confidence: float = Field(ge=0.0, le=1.0, description="Confidence score of the intent parsing (0.0 to 1.0)")
+

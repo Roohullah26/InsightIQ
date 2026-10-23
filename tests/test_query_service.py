@@ -113,3 +113,164 @@ def test_query_nonexistent_dataset_raises_not_found(query_test_setup):
     settings, _ = query_test_setup
     with pytest.raises(DatasetNotFoundError):
         QueryService.execute_query("unknown_uuid", "total revenue", settings)
+
+
+def test_query_open_ended_swot_analysis(query_test_setup):
+    """Verify SWOT analysis inquiry returns rich structured grounded answer."""
+    settings, dataset_id = query_test_setup
+    res = QueryService.execute_query(dataset_id, "Give me a SWOT analysis of this business data", settings)
+
+    assert res.intent == "open_ended_reasoning"
+    assert res.source == "deterministic_engine"
+    assert "SWOT Analysis" in res.answer
+    assert "Strengths:" in res.answer
+    assert "Weaknesses:" in res.answer
+    assert "Opportunities:" in res.answer
+    assert "Threats" in res.answer
+    assert res.data_preview is not None
+    assert any(row["metric"] == "Total Records" for row in res.data_preview)
+
+
+def test_query_open_ended_strategic_recommendations(query_test_setup):
+    """Verify strategic recommendations question generates prioritized actions."""
+    settings, dataset_id = query_test_setup
+    res = QueryService.execute_query(dataset_id, "What strategic recommendations do you suggest to improve performance?", settings)
+
+    assert res.intent == "open_ended_reasoning"
+    assert res.source == "deterministic_engine"
+    assert "Strategic Recommendations" in res.answer
+    assert "Priority 1" in res.answer
+    assert "Priority 2" in res.answer
+
+
+def test_query_open_ended_why_causal_analysis(query_test_setup):
+    """Verify 'why' question generates causal driver analysis."""
+    settings, dataset_id = query_test_setup
+    res = QueryService.execute_query(dataset_id, "Why is profit lower in certain stores?", settings)
+
+    assert res.intent == "open_ended_reasoning"
+    assert res.source == "deterministic_engine"
+    assert "Factor & Causal Driver Analysis" in res.answer
+    assert "variance" in res.answer.lower() or "concentration" in res.answer.lower()
+
+
+def test_query_open_ended_investor_briefing(query_test_setup):
+    """Verify investor/pitch inquiry generates executive briefing."""
+    settings, dataset_id = query_test_setup
+    res = QueryService.execute_query(dataset_id, "What should an investor know about this company?", settings)
+
+    assert res.intent == "open_ended_reasoning"
+    assert res.source == "deterministic_engine"
+    assert "Investor & Stakeholder Executive Briefing" in res.answer
+    assert "Investment Thesis" in res.answer
+
+
+def test_query_open_ended_eli5_analogy(query_test_setup):
+    """Verify 'explain like I'm 5' inquiry generates simplified analogy."""
+    settings, dataset_id = query_test_setup
+    res = QueryService.execute_query(dataset_id, "Explain this dataset like I'm 5", settings)
+
+    assert res.intent == "open_ended_reasoning"
+    assert res.source == "deterministic_engine"
+    assert "Explain Like I'm 5" in res.answer
+
+
+def test_query_open_ended_general_fallback(query_test_setup):
+    """Verify any broad question routes to open-ended reasoning rather than failing."""
+    settings, dataset_id = query_test_setup
+    res = QueryService.execute_query(dataset_id, "Can you share your thoughts and high-level ideas on this data?", settings)
+
+    assert res.intent == "open_ended_reasoning"
+    assert res.source == "deterministic_engine"
+    assert "Executive Business Intelligence Synthesis" in res.answer
+
+
+def test_query_unrecognized_gibberish(query_test_setup):
+    """Verify uninterpretable gibberish correctly returns unrecognized intent."""
+    settings, dataset_id = query_test_setup
+    res = QueryService.execute_query(dataset_id, "xyz123abc", settings)
+
+    assert res.intent == "unrecognized"
+    assert res.confidence == 0.20
+
+
+def test_query_gemini_ai_model_integration(query_test_setup, monkeypatch):
+    """Verify that when Gemini API is available and succeeds, source is 'ai_model'."""
+    settings, dataset_id = query_test_setup
+    ai_settings = Settings(
+        data_dir=settings.data_dir,
+        gemini_api_key="mock-valid-gemini-key",
+        _env_file=None,
+    )
+
+    class MockResponse:
+        status_code = 200
+
+        def json(self):
+            return {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": "### 🤖 AI Executive Briefing\n\nBased on your revenue numbers, Store F is crushing it."
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+    class MockClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+        def post(self, url, json):
+            return MockResponse()
+
+    import httpx
+    monkeypatch.setattr(httpx, "Client", MockClient)
+
+    res = QueryService.execute_query(dataset_id, "What strategic advice do you have for this company?", ai_settings)
+    assert res.intent == "open_ended_reasoning"
+    assert res.source == "ai_model"
+    assert "Store F is crushing it" in res.answer
+    assert res.confidence >= 0.95
+
+
+def test_query_gemini_ai_fallback_on_error(query_test_setup, monkeypatch):
+    """Verify that when Gemini API raises an exception or returns 500, it falls back gracefully to deterministic engine."""
+    settings, dataset_id = query_test_setup
+    ai_settings = Settings(
+        data_dir=settings.data_dir,
+        gemini_api_key="mock-failing-gemini-key",
+        _env_file=None,
+    )
+
+    class FailingClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+        def post(self, url, json):
+            raise RuntimeError("Gemini API connection timeout")
+
+    import httpx
+    monkeypatch.setattr(httpx, "Client", FailingClient)
+
+    res = QueryService.execute_query(dataset_id, "Give me a SWOT analysis of this business data", ai_settings)
+    assert res.intent == "open_ended_reasoning"
+    assert res.source == "deterministic_engine"
+    assert "SWOT Analysis" in res.answer
+

@@ -10,6 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -39,8 +40,20 @@ class Settings(BaseSettings):
 
     # AI & Intelligence provider settings (optional)
     gemini_api_key: str | None = None
-    ai_model: str = "gemini-2.5-flash"
+    ai_model: str = "gemini-3.6-flash"
     ai_enabled: bool = False
+
+    @model_validator(mode="after")
+    def _resolve_ai_keys(self) -> "Settings":
+        import os
+
+        if not self.gemini_api_key:
+            self.gemini_api_key = os.environ.get("GEMINI_API_KEY") or None
+        if self.gemini_api_key and not self.ai_enabled:
+            self.ai_enabled = True
+        return self
+
+
 
 
 

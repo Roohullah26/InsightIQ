@@ -75,3 +75,33 @@ def test_openapi_includes_query_route(query_api_client):
     paths = response.json()["paths"]
     assert "/api/v1/query/{dataset_id}" in paths
     assert "post" in paths["/api/v1/query/{dataset_id}"]
+
+
+def test_query_endpoint_open_ended_swot(query_api_client):
+    """Verify POST /api/v1/query/{dataset_id} handles open-ended SWOT analysis inquiries."""
+    client, dataset_id = query_api_client
+    response = client.post(
+        f"/api/v1/query/{dataset_id}",
+        json={"query": "Provide a SWOT analysis of this department data"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["intent"] == "open_ended_reasoning"
+    assert data["source"] in ["ai_model", "deterministic_engine"]
+    assert "SWOT Analysis" in data["answer"]
+    assert data["data_preview"] is not None
+
+
+def test_query_endpoint_open_ended_recommendations(query_api_client):
+    """Verify POST /api/v1/query/{dataset_id} handles strategic recommendation inquiries."""
+    client, dataset_id = query_api_client
+    response = client.post(
+        f"/api/v1/query/{dataset_id}",
+        json={"query": "What strategic growth recommendations do you suggest?"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["intent"] == "open_ended_reasoning"
+    assert "Strategic Recommendations" in data["answer"]
+    assert "Priority 1" in data["answer"]
+

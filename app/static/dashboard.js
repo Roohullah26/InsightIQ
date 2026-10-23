@@ -527,7 +527,7 @@ function setupChat() {
     if (e.key === 'Enter') sendChatMessage();
   });
 
-  suggestionChips.forEach(chip => {
+  document.querySelectorAll('.suggestion-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       chatInput.value = chip.textContent;
       sendChatMessage();
@@ -535,11 +535,54 @@ function setupChat() {
   });
 }
 
+function formatMarkdownToHtml(text) {
+  if (!text) return '';
+  let safe = escapeHtml(text);
+
+  // Convert markdown headers
+  safe = safe.replace(/^### (.*$)/gim, '<h4 class="chat-heading">$1</h4>');
+  safe = safe.replace(/^## (.*$)/gim, '<h3 class="chat-heading">$1</h3>');
+
+  // Convert bold
+  safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+  // Convert bullet points & paragraphs
+  const lines = safe.split('\n');
+  let inList = false;
+  let formatted = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('- ') || line.startsWith('* ')) {
+      if (!inList) {
+        formatted.push('<ul class="chat-list">');
+        inList = true;
+      }
+      formatted.push(`<li class="chat-bullet">${line.substring(2)}</li>`);
+    } else {
+      if (inList) {
+        formatted.push('</ul>');
+        inList = false;
+      }
+      if (line.startsWith('<h3') || line.startsWith('<h4')) {
+        formatted.push(line);
+      } else if (line.length > 0) {
+        formatted.push(`<p class="chat-p">${line}</p>`);
+      }
+    }
+  }
+  if (inList) {
+    formatted.push('</ul>');
+  }
+
+  return formatted.join('');
+}
+
 async function sendChatMessage() {
   const query = chatInput.value.trim();
   if (!query || !activeDatasetId) return;
 
-  appendMessage('user', query);
+  appendMessage('user', escapeHtml(query));
   chatInput.value = '';
 
   const botMsgId = 'msg-' + Date.now();
@@ -555,19 +598,25 @@ async function sendChatMessage() {
     const data = await res.json();
     const botEl = document.getElementById(botMsgId);
 
+    const sourceClass = data.source === 'ai_model' ? 'source-ai' : 'source-det';
+    const sourceLabel = data.source === 'ai_model' ? '🤖 Gemini 3.6 Flash' : '⚡ Deterministic Engine';
+
     let html = `
-      <span class="chat-intent-tag">${data.intent.replace('_', ' ')}</span>
-      <div style="font-weight:500; margin-bottom:0.5rem;">${escapeHtml(data.answer)}</div>
+      <div style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.6rem;">
+        <span class="chat-intent-tag">${data.intent.replace(/_/g, ' ')}</span>
+        <span class="chat-source-badge ${sourceClass}">${sourceLabel}</span>
+      </div>
+      <div style="font-size:0.95rem;">${formatMarkdownToHtml(data.answer)}</div>
     `;
 
     if (data.data_preview && data.data_preview.length > 0) {
       const keys = Object.keys(data.data_preview[0]);
-      html += `<div style="overflow-x:auto; margin-top:0.5rem;"><table style="font-size:0.75rem;"><thead><tr>`;
-      keys.forEach(k => html += `<th>${k}</th>`);
+      html += `<div style="overflow-x:auto; margin-top:0.75rem; border-top:1px solid rgba(255,255,255,0.08); padding-top:0.5rem;"><table style="font-size:0.8rem; width:100%;"><thead><tr>`;
+      keys.forEach(k => html += `<th>${k.replace(/_/g, ' ')}</th>`);
       html += `</tr></thead><tbody>`;
-      data.data_preview.slice(0, 5).forEach(row => {
+      data.data_preview.slice(0, 6).forEach(row => {
         html += `<tr>`;
-        keys.forEach(k => html += `<td>${row[k] !== null ? row[k] : '—'}</td>`);
+        keys.forEach(k => html += `<td>${row[k] !== null && row[k] !== undefined ? escapeHtml(String(row[k])) : '—'}</td>`);
         html += `</tr>`;
       });
       html += `</tbody></table></div>`;
@@ -576,9 +625,10 @@ async function sendChatMessage() {
     botEl.innerHTML = html;
   } catch (err) {
     const botEl = document.getElementById(botMsgId);
-    botEl.innerHTML = `<div style="color:var(--accent-rose);">Error executing query: ${err.message}</div>`;
+    botEl.innerHTML = `<div style="color:var(--accent-rose);">Error executing query: ${escapeHtml(err.message)}</div>`;
   }
 }
+
 
 function appendMessage(sender, htmlContent, id = null) {
   const div = document.createElement('div');
