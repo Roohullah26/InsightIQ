@@ -1,18 +1,10 @@
+"""InsightIQ entry point and backward-compatible ASGI shim.
 
-from fastapi import FastAPI
-from app.core.config import settings
+Delegates application construction to the modular factory in ``app.main``.
+Running ``python -m uvicorn main:app`` imports the shared ``app`` instance here.
+"""
 
-app = FastAPI(title=settings.app_name)
+from app.main import app, create_app
 
+__all__ = ["app", "create_app"]
 
-@app.get("/")
-def home():
-    return {
-        "message": "Welcome to InsightIQ!",
-        "status": "running"
-    }
-
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
