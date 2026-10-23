@@ -6,19 +6,21 @@ and routing. Exposes a default module-level ``app`` instance for ASGI
 servers (e.g., uvicorn app.main:app).
 """
 
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application startup and shutdown lifecycle events."""
-    # Startup tasks (state initialization, DB connections, caches)
+    app.state.start_time = time.time()
     yield
     # Shutdown tasks (releasing resources, closing pools)
 
@@ -39,6 +41,9 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
         debug=cfg.debug,
         lifespan=lifespan,
     )
+    application.state.settings = cfg
+    application.state.start_time = time.time()
+
 
     # Cross-Origin Resource Sharing (CORS) middleware
     application.add_middleware(
@@ -61,7 +66,11 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
     def health_check() -> dict[str, str]:
         return {"status": "healthy"}
 
+    # Register API v1 aggregated router
+    application.include_router(api_router, prefix=cfg.api_v1_prefix)
+
     return application
+
 
 
 # Default module-level instance for ASGI servers
