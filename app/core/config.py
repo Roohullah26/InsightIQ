@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     max_columns_limit: int = 200
     data_dir: Path = _REPO_ROOT / "data"
 
+    # AI & Intelligence provider settings (optional)
+    gemini_api_key: str | None = None
+    ai_model: str = "gemini-2.5-flash"
+    ai_enabled: bool = False
+
+
 
 
 @lru_cache
