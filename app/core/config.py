@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
 
+    # Dataset ingestion and resource constraints
+    max_upload_size_bytes: int = 10 * 1024 * 1024  # 10 MB default
+    max_rows_limit: int = 100_000
+    max_columns_limit: int = 200
+    data_dir: Path = _REPO_ROOT / "data"
+
+
 
 @lru_cache
 def get_settings() -> Settings:
