@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InsightIQ — AI-Powered Business Intelligence Platform</title>
+  <meta name="description" content="Enterprise AI-powered Business Intelligence platform with automated exploratory data profiling, correlation matrix analysis, outlier detection, and natural language data querying.">
+  <link rel="stylesheet" href="/static/dashboard.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- Navigation Header -->
+  <header class="header">
+    <a href="#" class="brand">
+      <div class="brand-icon">IQ</div>
+      <h1 class="brand-title">InsightIQ</h1>
+      <span class="brand-badge">Enterprise BI</span>
+    </a>
+    <div class="header-status">
+      <div class="status-indicator" id="system-status">
+        <span class="status-dot"></span>
+        <span id="system-status-text">API Online (v0.1.0)</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Hero / Upload Section -->
+    <section class="hero-section" aria-label="Dataset Ingestion and Selection">
+      <div class="dropzone-card" id="dropzone" role="button" tabindex="0" aria-label="Dropzone for uploading CSV files">
+        <input type="file" id="file-input" class="file-input" accept=".csv">
+        <div class="dropzone-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+        </div>
+        <div class="dropzone-title">Drop your CSV dataset here</div>
+        <div class="dropzone-subtitle">Click to browse or drag file (up to 10 MB)</div>
+      </div>
+
+      <div class="dataset-select-card">
+        <div>
+          <div class="card-label">Active Dataset</div>
+          <select id="dataset-picker" class="dataset-picker" aria-label="Select active dataset">
+            <option value="">Loading datasets...</option>
+          </select>
+        </div>
+        <button id="load-demo-btn" class="sample-loader-btn" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          Load Demo Enterprise Dataset
+        </button>
+      </div>
+    </section>
+
+    <!-- KPI Summary Row -->
+    <section class="kpi-grid" aria-label="Key Performance Indicators">
+      <div class="kpi-card">
+        <div class="kpi-label">Data Health Score</div>
+        <div class="kpi-value" id="kpi-health">—</div>
+        <div class="kpi-subtext">Automated quality &amp; stability index</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Total Records</div>
+        <div class="kpi-value" id="kpi-rows">—</div>
+        <div class="kpi-subtext">Total analyzed dataset rows</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Features / Columns</div>
+        <div class="kpi-value" id="kpi-cols">—</div>
+        <div class="kpi-subtext">Categorical &amp; numeric attributes</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Completeness</div>
+        <div class="kpi-value" id="kpi-completeness">—</div>
+        <div class="kpi-subtext">Non-null values across matrix</div>
+      </div>
+    </section>
+
+    <!-- Interactive Navigation Tabs -->
+    <nav class="tab-nav" aria-label="Dashboard Views">
+      <button class="tab-btn active" data-tab="tab-insights" id="btn-tab-insights" type="button">AI Executive Insights</button>
+      <button class="tab-btn" data-tab="tab-chat" id="btn-tab-chat" type="button">Talk to Your Data</button>
+      <button class="tab-btn" data-tab="tab-profile" id="btn-tab-profile" type="button">Exploratory Profile</button>
+      <button class="tab-btn" data-tab="tab-correlations" id="btn-tab-correlations" type="button">Driver Correlations</button>
+      <button class="tab-btn" data-tab="tab-aggregations" id="btn-tab-aggregations" type="button">Visual Aggregations</button>
+      <button class="tab-btn" data-tab="tab-anomalies" id="btn-tab-anomalies" type="button">Anomaly Inspector</button>
+    </nav>
+
+    <!-- Tab 1: AI Executive Insights -->
+    <section id="tab-insights" class="tab-pane active" aria-labelledby="btn-tab-insights">
+      <div class="insights-hero-card">
+        <div class="insights-hero-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+          </svg>
+          Executive Strategic Briefing
+        </div>
+        <p class="insights-hero-summary" id="insights-exec-summary">Select or upload a dataset to generate automated executive intelligence.</p>
+      </div>
+
+      <div class="insights-grid" id="insights-container">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+    <!-- Tab 2: "Talk to Your Data" (Conversational Natural Language Query) -->
+    <section id="tab-chat" class="tab-pane" aria-labelledby="btn-tab-chat">
+      <div class="chat-container">
+        <div class="chat-history" id="chat-history">
+          <div class="chat-msg bot">
+            <span class="chat-intent-tag">InsightIQ Copilot</span>
+            <div>Welcome! Ask me any analytical question about this dataset (e.g. totals, averages, rankings, correlations, or anomalies).</div>
+          </div>
+        </div>
+
+        <div class="chat-suggestions">
+          <button class="suggestion-chip" type="button">What is the total revenue?</button>
+          <button class="suggestion-chip" type="button">Show me revenue by region</button>
+          <button class="suggestion-chip" type="button">What is the top store by revenue?</button>
+          <button class="suggestion-chip" type="button">Are there any outliers in revenue?</button>
+          <button class="suggestion-chip" type="button">How many rows in this dataset?</button>
+        </div>
+
+        <div class="chat-input-bar">
+          <input type="text" id="chat-input" class="chat-input" placeholder="Ask a question (e.g. 'Show me average sales by department')...">
+          <button id="chat-send-btn" class="btn-primary" type="button">Ask IQ</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 3: Exploratory Profile -->
+    <section id="tab-profile" class="tab-pane" aria-labelledby="btn-tab-profile">
+      <div class="data-table-container">
+        <table id="preview-table">
+          <thead id="preview-table-head"></thead>
+          <tbody id="preview-table-body"></tbody>
+        </table>
+      </div>
+      <div class="column-cards-grid" id="column-cards-container">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+    <!-- Tab 4: Correlations -->
+    <section id="tab-correlations" class="tab-pane" aria-labelledby="btn-tab-correlations">
+      <div class="chart-card">
+        <div class="chart-header">
+          <h2 class="chart-title">Key Feature Relationships &amp; Cross-Drivers</h2>
+        </div>
+        <div id="correlations-container">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 5: Aggregations & Visual Chart -->
+    <section id="tab-aggregations" class="tab-pane" aria-labelledby="btn-tab-aggregations">
+      <div class="chart-card">
+        <div class="controls-row">
+          <div>
+            <label for="agg-dim-select" class="card-label">Group By (Dimension)</label>
+            <select id="agg-dim-select" class="select-input"></select>
+          </div>
+          <div>
+            <label for="agg-metric-select" class="card-label">Metric (Measure)</label>
+            <select id="agg-metric-select" class="select-input"></select>
+          </div>
+          <div>
+            <label for="agg-func-select" class="card-label">Function</label>
+            <select id="agg-func-select" class="select-input">
+              <option value="sum">Sum</option>
+              <option value="mean">Average (Mean)</option>
+              <option value="median">Median</option>
+              <option value="max">Maximum</option>
+              <option value="min">Minimum</option>
+            </select>
+          </div>
+          <button id="run-agg-btn" class="btn-primary" style="margin-top:1.3rem;" type="button">Generate Chart</button>
+        </div>
+        <div style="height: 380px; position: relative;">
+          <canvas id="agg-chart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 6: Anomaly Inspector -->
+    <section id="tab-anomalies" class="tab-pane" aria-labelledby="btn-tab-anomalies">
+      <div class="chart-card">
+        <div class="controls-row">
+          <div>
+            <label for="anomaly-col-select" class="card-label">Inspect Column</label>
+            <select id="anomaly-col-select" class="select-input"></select>
+          </div>
+          <div>
+            <label for="anomaly-method-select" class="card-label">Method</label>
+            <select id="anomaly-method-select" class="select-input">
+              <option value="iqr">Interquartile Range (IQR)</option>
+              <option value="zscore">Z-Score (|z| &gt; 1.5)</option>
+            </select>
+          </div>
+          <button id="scan-anomalies-btn" class="btn-primary" style="margin-top:1.3rem;" type="button">Scan for Anomalies</button>
+        </div>
+        <div id="anomalies-result-container">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>

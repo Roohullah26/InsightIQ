@@ -9,12 +9,18 @@ servers (e.g., uvicorn app.main:app).
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
+
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+
 
 
 @asynccontextmanager
@@ -69,7 +75,17 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
     # Register API v1 aggregated router
     application.include_router(api_router, prefix=cfg.api_v1_prefix)
 
+    # Mount static assets and serve interactive web dashboard
+    if _STATIC_DIR.exists():
+        application.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
+
+        @application.get("/dashboard", response_class=HTMLResponse, tags=["ui"], include_in_schema=False)
+        def dashboard() -> FileResponse:
+            index_path = _STATIC_DIR / "index.html"
+            return FileResponse(index_path)
+
     return application
+
 
 
 
