@@ -37,7 +37,8 @@ dist/
 .eggs/
 
 # ---- Generated data & local artifacts (root-anchored; app source is never excluded) ----
-/data/
+/data/*
+!/data/executive_q3_performance_45.csv
 /uploads/
 /artifacts/
 /logs/

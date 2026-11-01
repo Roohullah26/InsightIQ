@@ -130,3 +130,51 @@ def test_list_datasets(temp_settings):
     ids = {d.dataset_id for d in datasets}
     assert r1.summary.dataset_id in ids
     assert r2.summary.dataset_id in ids
+
+
+def test_delete_dataset(temp_settings):
+    """Verify permanent deletion of dataset files."""
+    csv_data = b"a,b\n1,2\n"
+    r = DatasetService.ingest_csv(csv_data, "temp.csv", temp_settings)
+    ds_id = r.summary.dataset_id
+
+    # Deleting existing dataset succeeds
+    DatasetService.delete_dataset(ds_id, temp_settings)
+
+    # Subsequent access raises DatasetNotFoundError
+    with pytest.raises(DatasetNotFoundError):
+        DatasetService.get_dataset_profile(ds_id, temp_settings)
+
+    # Deleting again raises DatasetNotFoundError
+    with pytest.raises(DatasetNotFoundError):
+        DatasetService.delete_dataset(ds_id, temp_settings)
+
+
+def test_list_datasets_deduplication(temp_settings):
+    """Verify deduplication hides older duplicate uploads of same filename and shape."""
+    csv_data = b"col1,col2\n10,20\n30,40\n"
+    r1 = DatasetService.ingest_csv(csv_data, "sales.csv", temp_settings)
+    r2 = DatasetService.ingest_csv(csv_data, "sales.csv", temp_settings)
+
+    deduped = DatasetService.list_datasets(temp_settings, deduplicate=True)
+    assert len(deduped) == 1
+    assert deduped[0].filename == "sales.csv"
+
+    # Non-deduped lists both
+    all_items = DatasetService.list_datasets(temp_settings, deduplicate=False)
+    assert len(all_items) == 2
+
+    # Deleting the latest dataset also cleans up shadowed duplicates of the same (filename, shape)
+    DatasetService.delete_dataset(deduped[0].dataset_id, temp_settings)
+    assert DatasetService.list_datasets(temp_settings, deduplicate=False) == []
+
+
+def test_path_traversal_dataset_id_rejected(temp_settings):
+    """Verify path traversal attempts in dataset_id raise DatasetNotFoundError."""
+    for malicious_id in ["../pyproject", "..\\pyproject", "a/b/c", "a\\b\\c", "..", ""]:
+        with pytest.raises(DatasetNotFoundError):
+            DatasetService.get_dataset_profile(malicious_id, temp_settings)
+        with pytest.raises(DatasetNotFoundError):
+            DatasetService.get_dataframe(malicious_id, temp_settings)
+        with pytest.raises(DatasetNotFoundError):
+            DatasetService.delete_dataset(malicious_id, temp_settings)

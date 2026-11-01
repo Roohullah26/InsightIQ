@@ -4,7 +4,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 CorrelationMethod = Literal["pearson", "spearman"]
-AnomalyMethod = Literal["iqr", "zscore"]
+AnomalyMethod = Literal["iqr", "zscore", "hybrid"]
 AggregateFunction = Literal["sum", "mean", "median", "min", "max", "count"]
 
 

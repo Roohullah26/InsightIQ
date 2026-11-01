@@ -97,3 +97,27 @@ def test_openapi_includes_dataset_routes(app_with_temp_data):
     assert "/api/v1/datasets/upload" in paths
     assert "/api/v1/datasets" in paths
     assert "/api/v1/datasets/{dataset_id}" in paths
+
+
+def test_delete_dataset_endpoint(app_with_temp_data):
+    """Verify DELETE /api/v1/datasets/{dataset_id} removes dataset and returns 200."""
+    client = TestClient(app_with_temp_data)
+
+    csv_content = b"x,y\n1,2\n3,4\n"
+    files = {"file": ("to_delete.csv", io.BytesIO(csv_content), "text/csv")}
+    upload_res = client.post("/api/v1/datasets/upload", files=files)
+    assert upload_res.status_code == 201
+    ds_id = upload_res.json()["summary"]["dataset_id"]
+
+    # Delete dataset
+    del_res = client.delete(f"/api/v1/datasets/{ds_id}")
+    assert del_res.status_code == 200
+    assert "deleted" in del_res.json()["message"].lower()
+
+    # Subsequent GET returns 404
+    get_res = client.get(f"/api/v1/datasets/{ds_id}")
+    assert get_res.status_code == 404
+
+    # Subsequent DELETE returns 404
+    del_again = client.delete(f"/api/v1/datasets/{ds_id}")
+    assert del_again.status_code == 404

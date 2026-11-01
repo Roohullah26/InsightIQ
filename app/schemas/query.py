@@ -12,6 +12,8 @@ QueryIntent = Literal[
     "anomaly_inquiry",
     "general_count",
     "open_ended_reasoning",
+    "risk_analysis",
+    "chart_request",
     "unrecognized",
 ]
 
@@ -49,4 +51,24 @@ class NaturalLanguageQueryResponse(BaseModel):
         description="Structured tabular rows backing the natural language answer",
     )
     confidence: float = Field(ge=0.0, le=1.0, description="Confidence score of the intent parsing (0.0 to 1.0)")
+    chart: dict[str, Any] | None = Field(
+        default=None,
+        description="Inline chart spec (type bar|scatter, labels/values or points) for rendering in chat",
+    )
+    action: dict[str, Any] | None = Field(
+        default=None,
+        description="Clickable follow-up action (label, target_tab, and pre-selected variables)",
+    )
+
+
+class QuerySuggestionsResponse(BaseModel):
+    """Dataset-specific Quick Metrics prompt chips."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    dataset_id: str
+    primary_metric: str | None = None
+    primary_dimension: str | None = None
+    excluded_identifiers: list[str] = Field(default_factory=list)
+    chips: list[str] = Field(default_factory=list)
 

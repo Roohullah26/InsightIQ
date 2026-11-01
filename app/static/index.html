@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>InsightIQ — AI-Powered Business Intelligence Platform</title>
-  <meta name="description" content="Enterprise AI-powered Business Intelligence platform with automated exploratory data profiling, correlation matrix analysis, outlier detection, and natural language data querying.">
-  <link rel="stylesheet" href="/static/dashboard.css">
+  <meta name="description" content="Enterprise AI-powered Business Intelligence platform with automated exploratory data profiling, causal correlation matrices, outlier detection, and natural language data querying.">
+  <link rel="stylesheet" href="/static/dashboard.css?v=20261101a">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -14,8 +14,10 @@
   <header class="header">
     <a href="#" class="brand">
       <div class="brand-icon">IQ</div>
-      <h1 class="brand-title">InsightIQ</h1>
-      <span class="brand-badge">Enterprise BI</span>
+      <div class="brand-info">
+        <h1 class="brand-title">InsightIQ</h1>
+        <span class="brand-badge">Enterprise BI</span>
+      </div>
     </a>
     <div class="header-status">
       <div class="status-indicator" id="system-status">
@@ -27,79 +29,240 @@
 
   <main class="container">
 
-    <!-- Hero / Upload Section -->
-    <section class="hero-section" aria-label="Dataset Ingestion and Selection">
-      <div class="dropzone-card" id="dropzone" role="button" tabindex="0" aria-label="Dropzone for uploading CSV files">
-        <input type="file" id="file-input" class="file-input" accept=".csv">
-        <div class="dropzone-icon">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="17 8 12 3 7 8"></polyline>
-            <line x1="12" y1="3" x2="12" y2="15"></line>
-          </svg>
+    <!-- Unified Dataset Toolbar Section -->
+    <section class="toolbar-section" aria-label="Dataset Workspace and Controls">
+      <div class="toolbar-bar">
+        <!-- Active Dataset Dropdown Selector & Subtle Demo Badge -->
+        <div class="toolbar-dataset-group">
+          <label for="dataset-picker" class="toolbar-label">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7c0-2-1.5-3-3.5-3h-9C5.5 4 4 5 4 7z"></path>
+              <path d="M9 12h6"></path>
+              <path d="M9 16h6"></path>
+            </svg>
+            <span>Active Dataset:</span>
+          </label>
+          <div class="select-wrapper">
+            <select id="dataset-picker" class="toolbar-select" aria-label="Select active dataset">
+              <option value="">Loading datasets...</option>
+            </select>
+          </div>
+          <!-- Subtle Demo Dataset Status Badge / Trigger next to selector -->
+          <button id="load-demo-btn" class="demo-status-badge" type="button" title="Load sample enterprise performance dataset">
+            <span class="demo-badge-dot"></span>
+            <span id="demo-btn-text">Demo Dataset</span>
+          </button>
         </div>
-        <div class="dropzone-title">Drop your CSV dataset here</div>
-        <div class="dropzone-subtitle">Click to browse or drag file (up to 10 MB)</div>
+
+        <!-- Primary Action Controls -->
+        <div class="toolbar-actions">
+          <!-- Compact Upload CSV Button -->
+          <button id="toggle-upload-btn" class="btn-toolbar" type="button" title="Upload new CSV dataset">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <span id="upload-btn-label">+ Upload CSV</span>
+          </button>
+
+          <!-- Preview Raw Data / Schema Drawer Toggle -->
+          <button id="open-schema-btn" class="btn-toolbar btn-secondary" type="button" title="Preview raw data table and column schema dictionary">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="3" y1="9" x2="21" y2="9"></line>
+              <line x1="9" y1="21" x2="9" y2="9"></line>
+            </svg>
+            <span>Preview Schema</span>
+          </button>
+
+          <!-- Delete / Remove Dataset Button -->
+          <button id="delete-dataset-btn" class="btn-toolbar btn-danger" type="button" title="Delete current dataset">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+            <span>Delete</span>
+          </button>
+        </div>
       </div>
 
-      <div class="dataset-select-card">
-        <div>
-          <div class="card-label">Active Dataset</div>
-          <select id="dataset-picker" class="dataset-picker" aria-label="Select active dataset">
-            <option value="">Loading datasets...</option>
-          </select>
+      <!-- Collapsible Drag & Drop Upload Zone (auto-collapses when dataset is loaded) -->
+      <div class="dropzone-collapsible collapsed" id="dropzone-container">
+        <div class="dropzone-card" id="dropzone" role="button" tabindex="0" aria-label="Dropzone for uploading CSV files">
+          <input type="file" id="file-input" class="file-input" accept=".csv">
+          <div class="dropzone-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </div>
+          <div class="dropzone-title">Drop your CSV dataset here</div>
+          <div class="dropzone-subtitle">Click to browse or drag file (up to 10 MB) · <button id="close-dropzone-btn" class="btn-text-link" type="button">Collapse</button></div>
         </div>
-        <button id="load-demo-btn" class="sample-loader-btn" type="button">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-          </svg>
-          Load Demo Enterprise Dataset
-        </button>
       </div>
     </section>
 
-    <!-- KPI Summary Row -->
+    <!-- Enriched KPI Summary Row -->
     <section class="kpi-grid" aria-label="Key Performance Indicators">
-      <div class="kpi-card">
-        <div class="kpi-label">Data Health Score</div>
-        <div class="kpi-value" id="kpi-health">—</div>
-        <div class="kpi-subtext">Automated quality &amp; stability index</div>
+      <!-- KPI 1: Data Health Score -->
+      <div class="kpi-card" id="kpi-card-health">
+        <div class="kpi-header">
+          <span class="kpi-label">Data Health Score</span>
+          <span class="kpi-info-trigger" id="health-info-icon" title="View 4-dimension scoring formula">ⓘ</span>
+        </div>
+        <div class="kpi-value-row">
+          <div class="kpi-value" id="kpi-health">—</div>
+        </div>
+        <div class="kpi-subtext" id="kpi-health-subtext">Weighted multi-factor data health index</div>
+        <!-- Health Breakdown Tooltip -->
+        <div class="health-breakdown-tooltip" id="health-tooltip">
+          <div class="tooltip-title">Data Health Formula (100 pts)</div>
+          <div class="tooltip-item"><span>Completeness (40 pts):</span> <strong id="score-completeness">—</strong></div>
+          <div class="tooltip-item"><span>Sample Adequacy (30 pts):</span> <strong id="score-sample">—</strong></div>
+          <div class="tooltip-item"><span>Outlier &amp; Variance Hygiene (30 pts):</span> <strong id="score-variance">—</strong></div>
+          <div class="tooltip-item"><span>Row Uniqueness:</span> <strong id="score-unique">—</strong></div>
+          <div class="tooltip-penalty" id="score-penalty-note"></div>
+        </div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Total Records</div>
-        <div class="kpi-value" id="kpi-rows">—</div>
-        <div class="kpi-subtext">Total analyzed dataset rows</div>
+
+      <!-- KPI 2: Total Records -->
+      <div class="kpi-card" id="kpi-card-records">
+        <div class="kpi-header">
+          <span class="kpi-label">Total Records</span>
+        </div>
+        <div class="kpi-value-row">
+          <div class="kpi-value" id="kpi-rows">—</div>
+          <span class="kpi-badge-wrapper" id="kpi-rows-badge"></span>
+        </div>
+        <div class="kpi-subtext" id="kpi-rows-subtext">Total analyzed dataset rows</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Features / Columns</div>
-        <div class="kpi-value" id="kpi-cols">—</div>
-        <div class="kpi-subtext">Categorical &amp; numeric attributes</div>
+
+      <!-- KPI 3: Features / Columns -->
+      <div class="kpi-card" id="kpi-card-features">
+        <div class="kpi-header">
+          <span class="kpi-label">Features / Columns</span>
+        </div>
+        <div class="kpi-value-row">
+          <div class="kpi-value" id="kpi-cols">—</div>
+        </div>
+        <div class="kpi-subtext" id="kpi-cols-subtext">Categorical &amp; numeric attributes</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Completeness</div>
-        <div class="kpi-value" id="kpi-completeness">—</div>
-        <div class="kpi-subtext">Non-null values across matrix</div>
+
+      <!-- KPI 4: Anomalies Flagged -->
+      <div class="kpi-card" id="kpi-card-anomalies">
+        <div class="kpi-header">
+          <span class="kpi-label">Anomalies Flagged</span>
+        </div>
+        <div class="kpi-value-row">
+          <div class="kpi-value" id="kpi-anomalies">—</div>
+          <span class="kpi-badge-wrapper" id="kpi-anomalies-badge"></span>
+        </div>
+        <div class="kpi-subtext" id="kpi-anomalies-subtext">Across numeric features | IQR &amp; Z-Score</div>
       </div>
     </section>
 
-    <!-- Interactive Navigation Tabs -->
+    <!-- Interactive Navigation Tabs with Icons and Actionable Count Badges -->
     <nav class="tab-nav" aria-label="Dashboard Views">
-      <button class="tab-btn active" data-tab="tab-insights" id="btn-tab-insights" type="button">AI Executive Insights</button>
-      <button class="tab-btn" data-tab="tab-chat" id="btn-tab-chat" type="button">Talk to Your Data</button>
-      <button class="tab-btn" data-tab="tab-profile" id="btn-tab-profile" type="button">Exploratory Profile</button>
-      <button class="tab-btn" data-tab="tab-correlations" id="btn-tab-correlations" type="button">Driver Correlations</button>
-      <button class="tab-btn" data-tab="tab-aggregations" id="btn-tab-aggregations" type="button">Visual Aggregations</button>
-      <button class="tab-btn" data-tab="tab-anomalies" id="btn-tab-anomalies" type="button">Anomaly Inspector</button>
+      <button class="tab-btn active" data-tab="tab-insights" id="btn-tab-insights" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+        </svg>
+        <span>AI Executive Insights</span>
+        <span class="tab-badge" id="badge-insights">0</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-chat" id="btn-tab-chat" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <span>Talk to Your Data</span>
+        <span class="tab-badge badge-ai">AI</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-profile" id="btn-tab-profile" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="8" y1="6" x2="21" y2="6"></line>
+          <line x1="8" y1="12" x2="21" y2="12"></line>
+          <line x1="8" y1="18" x2="21" y2="18"></line>
+          <line x1="3" y1="6" x2="3.01" y2="6"></line>
+          <line x1="3" y1="12" x2="3.01" y2="12"></line>
+          <line x1="3" y1="18" x2="3.01" y2="18"></line>
+        </svg>
+        <span>Exploratory Profile</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-correlations" id="btn-tab-correlations" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="18" cy="5" r="3"></circle>
+          <circle cx="6" cy="12" r="3"></circle>
+          <circle cx="18" cy="19" r="3"></circle>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+        </svg>
+        <span>Driver Correlations</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-aggregations" id="btn-tab-aggregations" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="20" x2="18" y2="10"></line>
+          <line x1="12" y1="20" x2="12" y2="4"></line>
+          <line x1="6" y1="20" x2="6" y2="14"></line>
+        </svg>
+        <span>Visual Aggregations</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-anomalies" id="btn-tab-anomalies" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+        <span>Anomaly Inspector</span>
+        <span class="tab-badge badge-warning" id="badge-anomalies">0</span>
+      </button>
     </nav>
 
     <!-- Tab 1: AI Executive Insights -->
     <section id="tab-insights" class="tab-pane active" aria-labelledby="btn-tab-insights">
       <div class="insights-hero-card">
-        <div class="insights-hero-title">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
-          </svg>
-          Executive Strategic Briefing
+        <div class="insights-hero-header">
+          <div class="insights-hero-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+            </svg>
+            <span>Executive Strategic Briefing</span>
+          </div>
+          <!-- Action Buttons: Copy Summary, Export PDF & Export Word -->
+          <div class="briefing-actions">
+            <button id="copy-summary-btn" class="btn-briefing" type="button" title="Copy strategic briefing text to clipboard">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span id="copy-summary-text">Copy Summary</span>
+            </button>
+            <button id="export-word-btn" class="btn-briefing" type="button" title="Download Executive Briefing as Microsoft Word (.docx)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+              <span>Export Word</span>
+            </button>
+            <button id="export-briefing-btn" class="btn-briefing btn-briefing-primary" type="button" title="Export Executive Briefing as PDF Report">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span>Export PDF</span>
+            </button>
+          </div>
         </div>
         <p class="insights-hero-summary" id="insights-exec-summary">Select or upload a dataset to generate automated executive intelligence.</p>
       </div>
@@ -112,6 +275,14 @@
     <!-- Tab 2: "Talk to Your Data" (Conversational Natural Language Query) -->
     <section id="tab-chat" class="tab-pane" aria-labelledby="btn-tab-chat">
       <div class="chat-container">
+        <div class="chat-header">
+          <div class="chat-header-title">
+            <span class="chat-header-dot"></span>
+            <strong>InsightIQ Copilot</strong>
+            <span class="chat-header-sub">Dual-Engine Intelligence</span>
+          </div>
+          <button id="clear-chat-btn" class="btn-ghost clear-chat-btn" type="button" title="Reset conversation">Clear Chat</button>
+        </div>
         <div class="chat-history" id="chat-history">
           <div class="chat-msg bot">
             <div style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.5rem;">
@@ -136,24 +307,18 @@
           </div>
           <div class="suggestions-row">
             <span class="suggestions-category-tag">Quick Metrics:</span>
-            <div class="chat-suggestions">
-              <button class="suggestion-chip" type="button">What is the total revenue?</button>
-              <button class="suggestion-chip" type="button">Show me revenue by region</button>
-              <button class="suggestion-chip" type="button">What is the top store by revenue?</button>
-              <button class="suggestion-chip" type="button">Are there any outliers in revenue?</button>
-              <button class="suggestion-chip" type="button">Is there a correlation between revenue and profit?</button>
-              <button class="suggestion-chip" type="button">How many rows in this dataset?</button>
+            <div class="chat-suggestions" id="quick-metrics-chips">
+              <span class="chips-placeholder">Load a dataset to generate tailored quick metrics.</span>
             </div>
           </div>
         </div>
 
         <div class="chat-input-bar">
-          <input type="text" id="chat-input" class="chat-input" placeholder="Ask any question (e.g. 'Give me a SWOT analysis' or 'Show average sales by region')...">
+          <input type="text" id="chat-input" class="chat-input" placeholder="Ask any question (e.g. 'Give me a SWOT analysis' or 'Show average profit by region')...">
           <button id="chat-send-btn" class="btn-primary" type="button">Ask IQ</button>
         </div>
       </div>
     </section>
-
 
     <!-- Tab 3: Exploratory Profile -->
     <section id="tab-profile" class="tab-pane" aria-labelledby="btn-tab-profile">
@@ -183,17 +348,17 @@
     <!-- Tab 5: Aggregations & Visual Chart -->
     <section id="tab-aggregations" class="tab-pane" aria-labelledby="btn-tab-aggregations">
       <div class="chart-card">
-        <div class="controls-row">
-          <div>
-            <label for="agg-dim-select" class="card-label">Group By (Dimension)</label>
+        <div class="agg-controls-grid">
+          <div class="agg-control-group">
+            <label for="agg-dim-select" class="agg-control-label">Group By</label>
             <select id="agg-dim-select" class="select-input"></select>
           </div>
-          <div>
-            <label for="agg-metric-select" class="card-label">Metric (Measure)</label>
+          <div class="agg-control-group">
+            <label for="agg-metric-select" class="agg-control-label">Metric</label>
             <select id="agg-metric-select" class="select-input"></select>
           </div>
-          <div>
-            <label for="agg-func-select" class="card-label">Function</label>
+          <div class="agg-control-group">
+            <label for="agg-func-select" class="agg-control-label">Function</label>
             <select id="agg-func-select" class="select-input">
               <option value="sum">Sum</option>
               <option value="mean">Average (Mean)</option>
@@ -202,8 +367,25 @@
               <option value="min">Minimum</option>
             </select>
           </div>
-          <button id="run-agg-btn" class="btn-primary" style="margin-top:1.3rem;" type="button">Generate Chart</button>
+          <div class="agg-control-group">
+            <label for="agg-chart-type" class="agg-control-label">Chart Type</label>
+            <select id="agg-chart-type" class="select-input">
+              <option value="bar">Bar (Vertical)</option>
+              <option value="horizontalBar">Horizontal Bar</option>
+              <option value="donut">Donut</option>
+              <option value="line">Line / Area</option>
+            </select>
+          </div>
+          <div class="agg-control-group">
+            <label for="agg-sort-select" class="agg-control-label">Sort Order</label>
+            <select id="agg-sort-select" class="select-input">
+              <option value="desc" selected>Highest First</option>
+              <option value="asc">Lowest First</option>
+              <option value="alpha">Alphabetical</option>
+            </select>
+          </div>
         </div>
+        <h3 id="agg-chart-title" class="agg-chart-title">Visual Aggregation</h3>
         <div style="height: 380px; position: relative;">
           <canvas id="agg-chart"></canvas>
         </div>
@@ -219,10 +401,11 @@
             <select id="anomaly-col-select" class="select-input"></select>
           </div>
           <div>
-            <label for="anomaly-method-select" class="card-label">Method</label>
+            <label for="anomaly-method-select" class="card-label">Detection Method</label>
             <select id="anomaly-method-select" class="select-input">
-              <option value="iqr">Interquartile Range (IQR)</option>
-              <option value="zscore">Z-Score (|z| &gt; 1.5)</option>
+              <option value="hybrid">Ensemble (IQR 1.5x + Z-Score 2.5)</option>
+              <option value="iqr">Interquartile Range (1.5 * IQR)</option>
+              <option value="zscore">Z-Score (|z| &gt; 2.5)</option>
             </select>
           </div>
           <button id="scan-anomalies-btn" class="btn-primary" style="margin-top:1.3rem;" type="button">Scan for Anomalies</button>
@@ -235,6 +418,56 @@
 
   </main>
 
-  <script src="/static/dashboard.js"></script>
+  <!-- Schema & Raw Data Preview Dialog / Modal -->
+  <dialog id="schema-dialog" class="schema-dialog" aria-labelledby="schema-dialog-title">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <div>
+          <h2 class="dialog-title" id="schema-dialog-title">Dataset Schema &amp; Structure</h2>
+          <div class="dialog-subtitle" id="schema-dialog-subtitle">Column data types, null distribution, and statistical metrics</div>
+        </div>
+        <button id="close-schema-btn" class="btn-dialog-close" type="button" aria-label="Close dialog">✕</button>
+      </div>
+
+      <div class="dialog-body">
+        <div class="schema-meta-chips" id="schema-meta-chips"></div>
+
+        <h3 class="schema-section-title">Column Dictionary &amp; Completeness</h3>
+        <div class="schema-table-wrapper">
+          <table class="schema-table" id="schema-columns-table">
+            <thead>
+              <tr>
+                <th>Column</th>
+                <th>Category</th>
+                <th>Native Type</th>
+                <th>Distinct Values</th>
+                <th>Null Count</th>
+                <th>Completeness</th>
+                <th>Sample Preview</th>
+              </tr>
+            </thead>
+            <tbody id="schema-columns-body"></tbody>
+          </table>
+        </div>
+
+        <h3 class="schema-section-title" style="margin-top:1.5rem;">Raw Data Head Preview (First 5 Rows)</h3>
+        <div class="data-table-container" style="max-height: 250px;">
+          <table id="schema-preview-table">
+            <thead id="schema-preview-head"></thead>
+            <tbody id="schema-preview-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="dialog-footer">
+        <button id="schema-close-footer-btn" class="btn-primary" type="button">Close Preview</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Global Toast Notification -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="/static/dashboard.js?v=20261101a"></script>
 </body>
 </html>

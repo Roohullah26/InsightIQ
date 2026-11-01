@@ -21,6 +21,7 @@ class ColumnProfile(BaseModel):
     distinct_percentage: float = Field(ge=0.0, le=100.0, description="Unique values as percentage of total rows")
     sample_values: list[Any] = Field(default_factory=list, description="Sample representative values from this column")
     stats: dict[str, Any] | None = Field(default=None, description="Statistical summaries (e.g. min, max, mean, quartiles)")
+    is_identifier: bool = Field(default=False, description="True if column is an identifier (ID/UUID/key/code/zip/phone or sequential integers) and must not be used as a metric")
 
 
 class DatasetSummary(BaseModel):

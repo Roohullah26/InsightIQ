@@ -54,7 +54,7 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
     # Cross-Origin Resource Sharing (CORS) middleware
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=cfg.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -75,14 +75,26 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
     # Register API v1 aggregated router
     application.include_router(api_router, prefix=cfg.api_v1_prefix)
 
-    # Mount static assets and serve interactive web dashboard
+    # Mount static assets and serve interactive web dashboard with cache-control headers
     if _STATIC_DIR.exists():
         application.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
+
+        @application.middleware("http")
+        async def disable_static_and_dashboard_cache(request, call_next):
+            response = await call_next(request)
+            if request.url.path.startswith("/static") or request.url.path == "/dashboard":
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+            return response
 
         @application.get("/dashboard", response_class=HTMLResponse, tags=["ui"], include_in_schema=False)
         def dashboard() -> FileResponse:
             index_path = _STATIC_DIR / "index.html"
-            return FileResponse(index_path)
+            return FileResponse(
+                index_path,
+                headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+            )
 
     return application
 

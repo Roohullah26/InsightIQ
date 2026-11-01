@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     environment: Literal["development", "staging", "production"] = "development"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
+    cors_origins: list[str] = ["*"]
 
     # Dataset ingestion and resource constraints
     max_upload_size_bytes: int = 10 * 1024 * 1024  # 10 MB default

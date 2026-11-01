@@ -14,6 +14,7 @@ from app.schemas.analytics import (
     CorrelationResponse,
     OutlierRecord,
 )
+from app.services.column_roles import is_identifier_column
 from app.services.dataset_service import DatasetNotFoundError, DatasetService
 
 
@@ -50,6 +51,10 @@ class AnalyticsService:
 
         # Filter strictly to numeric columns
         numeric_df = df.select_dtypes(include=[np.number])
+        # Identifier columns (IDs, codes, sequential indexes) are never meaningful drivers.
+        measure_cols = [c for c in numeric_df.columns if not is_identifier_column(df[c], c)]
+        if len(measure_cols) >= 2:
+            numeric_df = numeric_df[measure_cols]
         if len(numeric_df.columns) < 2:
             raise AnalyticsError(
                 f"Dataset contains {len(numeric_df.columns)} numeric column(s). At least 2 numeric columns are required for correlation analysis."
@@ -235,8 +240,48 @@ class AnalyticsService:
                             score=round(float(abs(z_scores.loc[idx])), 3),
                         )
                     )
+        elif method in ("hybrid", "ensemble"):
+            q25 = float(series.quantile(0.25))
+            q75 = float(series.quantile(0.75))
+            iqr = q75 - q25
+            lower_bound = round(q25 - (1.5 * iqr), 4)
+            upper_bound = round(q75 + (1.5 * iqr), 4)
+
+            mean_val = float(series.mean())
+            std_val = float(series.std()) if total_rows > 1 else 0.0
+
+            outlier_dict: dict[int, OutlierRecord] = {}
+
+            # 1. IQR Pass
+            if iqr > 0:
+                mask_iqr = (series < lower_bound) | (series > upper_bound)
+                for idx, val in series[mask_iqr].items():
+                    dist = (lower_bound - val) if val < lower_bound else (val - upper_bound)
+                    score = round(dist / iqr, 3)
+                    outlier_dict[int(idx)] = OutlierRecord(
+                        row_index=int(idx),
+                        value=round(float(val), 4),
+                        score=float(score),
+                    )
+
+            # 2. Z-Score Pass (|z| > 2.5 or threshold)
+            if std_val > 0:
+                z_thresh = threshold if threshold > 2.0 else 2.5
+                z_scores = (series - mean_val) / std_val
+                mask_z = z_scores.abs() > z_thresh
+                for idx, val in series[mask_z].items():
+                    z_score = round(float(abs(z_scores.loc[idx])), 3)
+                    if int(idx) not in outlier_dict or z_score > outlier_dict[int(idx)].score:
+                        outlier_dict[int(idx)] = OutlierRecord(
+                            row_index=int(idx),
+                            value=round(float(val), 4),
+                            score=z_score,
+                        )
+
+            outliers = list(outlier_dict.values())
+
         else:
-            raise AnalyticsError(f"Unsupported outlier detection method '{method}'. Use 'iqr' or 'zscore'.")
+            raise AnalyticsError(f"Unsupported outlier detection method '{method}'. Use 'iqr', 'zscore', or 'hybrid'.")
 
         # Sort outliers by extremity score descending
         outliers.sort(key=lambda o: o.score, reverse=True)

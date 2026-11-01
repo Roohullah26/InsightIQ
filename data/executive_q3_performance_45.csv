@@ -1,0 +1,46 @@
+region,store,revenue,marketing_spend,customers,satisfaction
+North,Chicago Flagship,139700.0,22900.0,1353,4.38
+North,Minneapolis Metro,111500.0,16900.0,1043,4.24
+North,Detroit Central,106700.0,16900.0,1073,3.20
+North,Milwaukee Plaza,98100.0,17900.0,1030,4.15
+North,Grand Rapids,87900.0,13800.0,906,4.05
+North,Green Bay,119900.0,19600.0,1181,4.13
+North,Columbus North,108100.0,18000.0,1112,4.23
+North,Indianapolis,109800.0,18200.0,1107,4.34
+North,Des Moines,100000.0,15800.0,956,4.08
+North,Cleveland,107800.0,19500.0,1110,4.22
+North,Toledo,124300.0,20300.0,1232,4.22
+South,Atlanta Premier,139600.0,24100.0,1392,4.35
+South,Dallas Galleria,103200.0,17300.0,1005,4.15
+South,Houston Heights,127700.0,19800.0,1223,4.3
+South,Miami Beachside,122200.0,19900.0,1193,4.3
+South,Austin Downtown,120200.0,20500.0,1228,4.15
+South,Charlotte South,121500.0,18900.0,1205,4.3
+South,Nashville Midtown,131500.0,21900.0,1282,4.36
+South,Tampa Bay,127700.0,21800.0,1361,4.33
+South,Orlando Lake,133300.0,22200.0,1311,4.12
+South,San Antonio,124300.0,19000.0,1173,4.19
+South,Raleigh,134100.0,21900.0,1288,4.28
+East,New York 5th Ave,167100.0,28100.0,1643,4.41
+East,Boston Waterfront,133400.0,22600.0,1330,4.16
+East,Philadelphia Market,126700.0,20600.0,1251,4.23
+East,DC Metro Center,132800.0,22500.0,1322,4.21
+East,Baltimore Harbor,151500.0,23900.0,1424,4.3
+East,Pittsburgh Point,139000.0,24600.0,1442,4.29
+East,Hartford Downtown,138600.0,21500.0,1380,4.3
+East,Providence Place,148200.0,24900.0,1415,4.34
+East,Buffalo Central,155800.0,26000.0,1481,4.2
+East,Albany Mall,158100.0,26000.0,1599,4.29
+East,Stamford,129000.0,22700.0,1329,4.27
+West,San Francisco Silicon,176100.0,30600.0,1769,4.49
+West,Seattle Downtown,153700.0,25600.0,1483,4.22
+West,Los Angeles Century,185900.0,37500.0,1892,4.42
+West,Denver Foothills,141100.0,23900.0,1439,4.2
+West,Phoenix Desert,164800.0,27700.0,1614,4.36
+West,Portland Pearl,160000.0,26800.0,1566,4.27
+West,San Diego Bay,169400.0,29500.0,1713,4.41
+West,Las Vegas Strip,150200.0,23900.0,1439,4.23
+West,Salt Lake City,175200.0,29200.0,1695,4.49
+West,Sacramento Capitol,159800.0,28300.0,1605,4.28
+West,San Jose Tech,170800.0,28800.0,1672,4.41
+West,Honolulu Palm,157600.0,25900.0,1566,4.51

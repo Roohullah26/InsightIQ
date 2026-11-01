@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import io
 import json
 from pathlib import Path
+import re
 from typing import Any
 import uuid
 
@@ -18,6 +19,12 @@ from app.schemas.dataset import (
     DatasetSummary,
     DatasetUploadResponse,
 )
+from app.services.column_roles import is_identifier_column
+
+_SAFE_DATASET_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+_MAX_CACHE_ENTRIES = 32
+_DF_CACHE: dict[str, tuple[int, pd.DataFrame]] = {}
+_PROFILE_CACHE: dict[str, tuple[int, DatasetProfile]] = {}
 
 
 class DatasetValidationError(ValueError):
@@ -111,6 +118,7 @@ class DatasetService:
             distinct_percentage=distinct_pct,
             sample_values=samples,
             stats=stats if stats else None,
+            is_identifier=is_identifier_column(series, series.name),
         )
 
     @classmethod
@@ -243,28 +251,118 @@ class DatasetService:
         )
 
     @classmethod
+    def _resolve_safe_paths(cls, dataset_id: str, settings: Settings) -> tuple[Path, Path]:
+        """Validate dataset_id against path traversal and return (csv_path, meta_path)."""
+        if not isinstance(dataset_id, str) or not _SAFE_DATASET_ID_RE.match(dataset_id):
+            raise DatasetNotFoundError(f"Dataset with ID '{dataset_id}' not found.")
+
+        storage_dir = Path(settings.data_dir).resolve()
+        csv_path = (storage_dir / f"{dataset_id}.csv").resolve()
+        meta_path = (storage_dir / f"{dataset_id}.json").resolve()
+
+        if not csv_path.is_relative_to(storage_dir) or not meta_path.is_relative_to(storage_dir):
+            raise DatasetNotFoundError(f"Dataset with ID '{dataset_id}' not found.")
+
+        return csv_path, meta_path
+
+    @classmethod
     def get_dataset_profile(cls, dataset_id: str, settings: Settings) -> DatasetProfile:
-        """Retrieve stored profile metadata for a given dataset ID."""
-        meta_path = Path(settings.data_dir) / f"{dataset_id}.json"
+        """Retrieve stored profile metadata for a given dataset ID (with mtime-validated cache)."""
+        csv_path, meta_path = cls._resolve_safe_paths(dataset_id, settings)
         if not meta_path.exists():
             raise DatasetNotFoundError(f"Dataset with ID '{dataset_id}' not found.")
 
+        cache_key = str(meta_path)
+        mtime_ns = meta_path.stat().st_mtime_ns
+        cached = _PROFILE_CACHE.get(cache_key)
+        if cached and cached[0] == mtime_ns:
+            return cached[1].model_copy(deep=True)
+
         data = json.loads(meta_path.read_text(encoding="utf-8"))
-        return DatasetProfile.model_validate(data["profile"])
+        profile = DatasetProfile.model_validate(data["profile"])
+
+        # Back-fill identifier flags for profiles persisted before identifier detection existed.
+        stored_cols = data["profile"].get("columns", [])
+        if any("is_identifier" not in c for c in stored_cols):
+            if csv_path.exists():
+                df = cls.get_dataframe(dataset_id, settings)
+                for col in profile.columns:
+                    if col.name in df.columns:
+                        col.is_identifier = is_identifier_column(df[col.name], col.name)
+
+        if len(_PROFILE_CACHE) >= _MAX_CACHE_ENTRIES:
+            _PROFILE_CACHE.pop(next(iter(_PROFILE_CACHE)))
+        _PROFILE_CACHE[cache_key] = (mtime_ns, profile)
+        return profile.model_copy(deep=True)
 
     @classmethod
-    def list_datasets(cls, settings: Settings) -> list[DatasetSummary]:
+    def delete_dataset(cls, dataset_id: str, settings: Settings) -> None:
+        """Permanently delete dataset CSV, metadata JSON, and any shadowed duplicate uploads."""
+        csv_path, meta_path = cls._resolve_safe_paths(dataset_id, settings)
+        storage_dir = Path(settings.data_dir).resolve()
+
+        # Identify (filename, row_count, column_count) key so shadowed duplicates are also cleaned up
+        target_key: tuple[str, int, int] | None = None
+        if meta_path.exists():
+            try:
+                data = json.loads(meta_path.read_text(encoding="utf-8"))
+                if "summary" in data:
+                    item = DatasetSummary.model_validate(data["summary"])
+                    target_key = (item.filename.strip().lower(), item.row_count, item.column_count)
+            except Exception:
+                target_key = None
+
+        deleted = False
+        if csv_path.exists():
+            csv_path.unlink()
+            _DF_CACHE.pop(str(csv_path), None)
+            deleted = True
+        if meta_path.exists():
+            meta_path.unlink()
+            _PROFILE_CACHE.pop(str(meta_path), None)
+            deleted = True
+
+        if not deleted:
+            raise DatasetNotFoundError(f"Dataset with ID '{dataset_id}' not found.")
+
+        # Clean up any older shadowed duplicates with the same (filename, row_count, column_count)
+        if target_key is not None and storage_dir.exists():
+            for other_meta in list(storage_dir.glob("*.json")):
+                try:
+                    other_data = json.loads(other_meta.read_text(encoding="utf-8"))
+                    if "summary" in other_data:
+                        other_item = DatasetSummary.model_validate(other_data["summary"])
+                        other_key = (other_item.filename.strip().lower(), other_item.row_count, other_item.column_count)
+                        if other_key == target_key:
+                            other_csv = storage_dir / f"{other_meta.stem}.csv"
+                            if other_csv.exists():
+                                other_csv.unlink()
+                                _DF_CACHE.pop(str(other_csv.resolve()), None)
+                            other_meta.unlink()
+                            _PROFILE_CACHE.pop(str(other_meta.resolve()), None)
+                except Exception:
+                    continue
+
+    @classmethod
+    def list_datasets(cls, settings: Settings, deduplicate: bool = True) -> list[DatasetSummary]:
         """List summaries of all ingested datasets."""
         storage_dir = Path(settings.data_dir)
         if not storage_dir.exists():
             return []
 
         summaries: list[DatasetSummary] = []
+        seen_keys: set[tuple[str, int, int]] = set()
         for meta_file in sorted(storage_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
             try:
                 data = json.loads(meta_file.read_text(encoding="utf-8"))
                 if "summary" in data:
-                    summaries.append(DatasetSummary.model_validate(data["summary"]))
+                    item = DatasetSummary.model_validate(data["summary"])
+                    if deduplicate:
+                        key = (item.filename.strip().lower(), item.row_count, item.column_count)
+                        if key in seen_keys:
+                            continue
+                        seen_keys.add(key)
+                    summaries.append(item)
             except Exception:
                 continue
 
@@ -272,9 +370,19 @@ class DatasetService:
 
     @classmethod
     def get_dataframe(cls, dataset_id: str, settings: Settings) -> pd.DataFrame:
-        """Load the persisted DataFrame for analysis."""
-        csv_path = Path(settings.data_dir) / f"{dataset_id}.csv"
+        """Load the persisted DataFrame for analysis (with mtime-validated in-memory cache)."""
+        csv_path, _ = cls._resolve_safe_paths(dataset_id, settings)
         if not csv_path.exists():
             raise DatasetNotFoundError(f"Dataset with ID '{dataset_id}' not found.")
 
-        return pd.read_csv(csv_path)
+        cache_key = str(csv_path)
+        mtime_ns = csv_path.stat().st_mtime_ns
+        cached = _DF_CACHE.get(cache_key)
+        if cached and cached[0] == mtime_ns:
+            return cached[1].copy()
+
+        df = pd.read_csv(csv_path)
+        if len(_DF_CACHE) >= _MAX_CACHE_ENTRIES:
+            _DF_CACHE.pop(next(iter(_DF_CACHE)))
+        _DF_CACHE[cache_key] = (mtime_ns, df)
+        return df.copy()

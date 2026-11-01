@@ -102,6 +102,26 @@ def test_outlier_detection_api(analytics_client_setup):
     assert any(o["value"] == 50000.0 for o in data["outliers"])
 
 
+def test_outlier_detection_hybrid_and_zscore(analytics_client_setup):
+    """Verify hybrid (ensemble) and zscore outlier detection methods."""
+    client, dataset_id = analytics_client_setup
+
+    # Test hybrid method
+    res_hybrid = client.get(f"/api/v1/analytics/outliers/{dataset_id}?column=sales&method=hybrid&threshold=1.5")
+    assert res_hybrid.status_code == 200
+    data_hybrid = res_hybrid.json()
+    assert data_hybrid["method"] == "hybrid"
+    assert data_hybrid["outlier_count"] >= 1
+    assert any(o["value"] == 50000.0 for o in data_hybrid["outliers"])
+
+    # Test zscore method
+    res_z = client.get(f"/api/v1/analytics/outliers/{dataset_id}?column=sales&method=zscore&threshold=2.0")
+    assert res_z.status_code == 200
+    data_z = res_z.json()
+    assert data_z["method"] == "zscore"
+    assert data_z["outlier_count"] >= 1
+
+
 def test_outlier_detection_api_invalid_column(analytics_client_setup):
     """Verify 400 returned for unknown column in outlier detection."""
     client, dataset_id = analytics_client_setup

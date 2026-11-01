@@ -274,3 +274,109 @@ def test_query_gemini_ai_fallback_on_error(query_test_setup, monkeypatch):
     assert res.source == "deterministic_engine"
     assert "SWOT Analysis" in res.answer
 
+
+def test_exclude_identifier_columns_and_prioritize_financial_metrics(tmp_path):
+    """Verify Customer ID is detected as identifier and Total Spend is prioritized as primary measure."""
+    test_settings = Settings(data_dir=tmp_path / "id_test_data", _env_file=None)
+    csv_rows = [
+        "Customer ID,Region,Total Spend,Items Purchased\n",
+        "101,North,1200.50,4\n",
+        "102,North,1500.00,5\n",
+        "103,South,800.00,2\n",
+        "104,South,950.00,3\n",
+        "105,East,3400.00,10\n",
+        "106,West,2100.00,7\n",
+    ]
+    upload_res = DatasetService.ingest_csv(
+        file_bytes="".join(csv_rows).encode("utf-8"),
+        filename="customers.csv",
+        settings=test_settings,
+    )
+    dataset_id = upload_res.summary.dataset_id
+
+    # 1. Check profile sets is_identifier
+    profile = DatasetService.get_dataset_profile(dataset_id=dataset_id, settings=test_settings)
+    id_col = next(c for c in profile.columns if c.name == "Customer ID")
+    assert id_col.is_identifier is True
+    spend_col = next(c for c in profile.columns if c.name == "Total Spend")
+    assert spend_col.is_identifier is False
+
+    # 2. Check build_quick_metric_suggestions
+    suggestions = QueryService.build_quick_metric_suggestions(dataset_id=dataset_id, settings=test_settings)
+    assert suggestions.primary_metric == "Total Spend"
+    assert suggestions.primary_dimension == "Region"
+    assert "Customer ID" in suggestions.excluded_identifiers
+    assert len(suggestions.chips) == 6
+    assert "Customer ID" not in suggestions.chips[0]
+    assert "Total Spend" in suggestions.chips[0]
+    assert "Total Spend by Region" in suggestions.chips[1]
+    assert "Total Spend" in suggestions.chips[3]  # outlier chip
+    assert "Total Spend" in suggestions.chips[4] and "Items Purchased" in suggestions.chips[4]  # correlation chip
+    assert "rows and columns" in suggestions.chips[5]
+
+
+def test_distinct_intent_handlers(query_test_setup):
+    """Verify distinct intent handlers for risks, grouped markdown table, charts, and row/column count."""
+    settings, dataset_id = query_test_setup
+
+    # 1. Risks & blind spots handler
+    risk_res = QueryService.execute_query(dataset_id, "What are our key risks and blind spots?", settings)
+    assert risk_res.intent == "risk_analysis"
+    assert "Risks & Blind Spots Analysis" in risk_res.answer
+    assert "Executive Business Intelligence Synthesis" not in risk_res.answer
+
+    # 2. Grouped aggregation Markdown table
+    grouped_res = QueryService.execute_query(dataset_id, "Show me revenue by region", settings)
+    assert grouped_res.intent == "grouped_aggregation"
+    assert "| Count | Sum | Mean | % Share |" in grouped_res.answer
+    assert grouped_res.action is not None
+    assert grouped_res.action["target_tab"] == "tab-aggregations"
+    assert grouped_res.action["dimension"] == "region"
+    assert grouped_res.action["metric"] == "revenue"
+
+    # 3. Chart request handler
+    chart_res = QueryService.execute_query(dataset_id, "Show me the graph for revenue by region", settings)
+    assert chart_res.intent == "chart_request"
+    assert chart_res.chart is not None
+    assert chart_res.chart["type"] == "bar"
+    assert len(chart_res.chart["labels"]) > 0
+    assert chart_res.action is not None
+    assert chart_res.action["target_tab"] == "tab-aggregations"
+
+    # 4. Scatter chart request
+    scatter_res = QueryService.execute_query(dataset_id, "Show me scatter plot revenue vs profit", settings)
+    assert scatter_res.intent == "chart_request"
+    assert scatter_res.chart is not None
+    assert scatter_res.chart["type"] == "scatter"
+    assert scatter_res.action is not None
+    assert scatter_res.action["target_tab"] == "tab-correlations"
+
+    # 5. Row and column count query
+    count_res = QueryService.execute_query(dataset_id, "How many rows and columns are in this dataset?", settings)
+    assert count_res.intent == "general_count"
+    assert "rows and" in count_res.answer and "columns" in count_res.answer
+
+
+def test_filter_intent_word_boundary_and_stopword_protection(tmp_path):
+    """Verify short category codes like 'IN' or 'OR' or substring matches do not hijack general metric queries."""
+    settings = Settings(data_dir=tmp_path / "filter_boundary_data", _env_file=None)
+    csv_data = (
+        "state,channel,revenue\n"
+        "IN,Online,1000\n"
+        "OR,Retail,2000\n"
+        "CA,Online,3000\n"
+    ).encode("utf-8")
+    res = DatasetService.ingest_csv(csv_data, "states.csv", settings)
+    ds_id = res.summary.dataset_id
+
+    # "in" inside "What is the total revenue in general?" must not filter by state=='IN'
+    q_res = QueryService.execute_query(ds_id, "What is the total revenue in general?", settings)
+    assert q_res.intent == "metric_summary"
+    assert "6,000.00" in q_res.answer
+
+    # Substring "line" must not falsely match channel=="Online"
+    q_sub = QueryService.execute_query(ds_id, "What is the total revenue baseline?", settings)
+    assert q_sub.intent == "metric_summary"
+    assert "6,000.00" in q_sub.answer
+
+

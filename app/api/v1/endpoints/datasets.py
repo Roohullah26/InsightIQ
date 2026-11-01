@@ -43,7 +43,8 @@ async def upload_dataset(
         )
 
     try:
-        content = await file.read()
+        # Read at most max_upload_size_bytes + 1 to prevent unbounded memory exhaustion
+        content = await file.read(settings.max_upload_size_bytes + 1)
         return DatasetService.ingest_csv(
             file_bytes=content,
             filename=file.filename,
@@ -81,6 +82,25 @@ def get_dataset(request: Request, dataset_id: str) -> DatasetProfile:
     settings = _get_active_settings(request)
     try:
         return DatasetService.get_dataset_profile(dataset_id=dataset_id, settings=settings)
+    except DatasetNotFoundError as err:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(err),
+        ) from err
+
+
+@router.delete(
+    "/{dataset_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Delete a dataset",
+    description="Deletes a dataset CSV and its profile metadata.",
+)
+def delete_dataset(request: Request, dataset_id: str) -> dict[str, str]:
+    """Delete a dataset by ID."""
+    settings = _get_active_settings(request)
+    try:
+        DatasetService.delete_dataset(dataset_id=dataset_id, settings=settings)
+        return {"message": f"Dataset '{dataset_id}' successfully deleted."}
     except DatasetNotFoundError as err:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

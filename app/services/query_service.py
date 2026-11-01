@@ -6,8 +6,9 @@ import pandas as pd
 
 from app.core.config import Settings
 from app.schemas.analytics import AggregationRequest
-from app.schemas.query import NaturalLanguageQueryResponse, QueryIntent
+from app.schemas.query import NaturalLanguageQueryResponse, QueryIntent, QuerySuggestionsResponse
 from app.services.analytics_service import AnalyticsService
+from app.services.column_roles import classify_columns, normalize_name
 from app.services.dataset_service import DatasetNotFoundError, DatasetService
 from app.services.insights_service import InsightsService
 
@@ -148,8 +149,9 @@ class QueryService:
         """Extract key metrics, distributions, correlations, and anomalies for reasoning."""
         total_rows = len(df)
         total_cols = len(df.columns)
-        numeric_cols = list(df.select_dtypes(include=[np.number]).columns)
-        cat_cols = list(df.select_dtypes(include=["object", "category", "string"]).columns)
+        roles = classify_columns(df)
+        numeric_cols = roles["measures"] or list(df.select_dtypes(include=[np.number]).columns)
+        cat_cols = roles["dimensions"] or list(df.select_dtypes(include=["object", "category", "string"]).columns)
 
         # 1. Insights & Data Quality
         try:
@@ -201,8 +203,8 @@ class QueryService:
         # 5. Segment breakdown (top dimension vs top metric)
         top_segment = None
         bottom_segment = None
-        primary_metric = numeric_cols[0] if numeric_cols else None
-        primary_dim = cat_cols[0] if cat_cols else None
+        primary_metric = roles["primary_measure"] or (numeric_cols[0] if numeric_cols else None)
+        primary_dim = roles["primary_dimension"] or (cat_cols[0] if cat_cols else None)
 
         if primary_metric and primary_dim:
             try:
@@ -426,6 +428,183 @@ class QueryService:
             confidence=0.91,
         )
 
+    @staticmethod
+    def _phrase_matches(query_text: str, columns: list[str]) -> list[str]:
+        """Columns whose normalized (multi-word) name appears in the query, ordered by position."""
+        nq = f" {normalize_name(query_text)} "
+        found: list[tuple[int, str]] = []
+        for col in sorted(columns, key=lambda c: -len(str(c))):
+            ncol = normalize_name(col)
+            if not ncol:
+                continue
+            pos = nq.find(f" {ncol} ")
+            if pos >= 0 and all(col != f[1] for f in found):
+                found.append((pos, col))
+        found.sort(key=lambda f: f[0])
+        return [c for _, c in found]
+
+    @staticmethod
+    def _fmt_md_cell(value: Any) -> str:
+        return str(value).replace("|", "\\|").replace("\n", " ")
+
+    @classmethod
+    def build_quick_metric_suggestions(cls, dataset_id: str, settings: Settings) -> QuerySuggestionsResponse:
+        """Build the six schema-driven Quick Metrics chips (identifier columns excluded)."""
+        df = DatasetService.get_dataframe(dataset_id=dataset_id, settings=settings)
+        roles = classify_columns(df)
+        measures = roles["measures"]
+        pm = roles["primary_measure"]
+        pc = roles["primary_dimension"]
+        sc = roles["secondary_dimension"] or pc
+
+        if pm:
+            total_label = f"What is the {pm}?" if normalize_name(pm).startswith("total") else f"What is the total {pm}?"
+            chip1 = total_label
+            chip2 = f"Show me {pm} by {pc}" if pc else f"What is the average {pm}?"
+            chip3 = f"What is the top {sc} by {pm}?" if sc else f"What is the highest {pm}?"
+            chip4 = f"Are there any outliers in {pm}?"
+        else:
+            chip1 = "Give me a summary of this dataset"
+            chip2 = "What are the key risks in this data?"
+            chip3 = "What are the main takeaways?"
+            chip4 = "Are there any outliers?"
+        if len(measures) >= 2:
+            chip5 = f"Is there a correlation between {measures[0]} and {measures[1]}?"
+        else:
+            chip5 = "Which columns are most related to each other?"
+        chip6 = "How many rows and columns are in this dataset?"
+
+        return QuerySuggestionsResponse(
+            dataset_id=dataset_id,
+            primary_metric=pm,
+            primary_dimension=pc,
+            excluded_identifiers=roles["identifiers"],
+            chips=[chip1, chip2, chip3, chip4, chip5, chip6],
+        )
+
+    @classmethod
+    def _risk_analysis(cls, df: pd.DataFrame, dataset_id: str, query: str) -> NaturalLanguageQueryResponse:
+        """Real risks and blind spots: weak segments, bottom quartile, nulls, variance gaps."""
+        roles = classify_columns(df)
+        pm = roles["primary_measure"]
+        dims = [d for d in roles["dimensions"] if 2 <= df[d].nunique(dropna=True) <= 50][:2]
+        lines: list[str] = ["### 🛡️ Risks & Blind Spots Analysis", ""]
+        preview: list[dict[str, Any]] = []
+
+        if pm:
+            series = df[pm].dropna()
+            total = float(series.sum())
+            lines.append(f"Primary measure analysed: **{pm}** (total {total:,.2f}). Identifier columns are excluded.\n")
+
+            for dim in dims:
+                grp = df.groupby(dim, dropna=True)[pm].sum().sort_values(ascending=False)
+                if len(grp) < 2:
+                    continue
+                top_val = float(grp.iloc[0])
+                cutoff = float(grp.quantile(0.25)) if len(grp) >= 4 else float(grp.iloc[-1])
+                weak = grp[grp <= cutoff].sort_values().head(3)
+                lines.append(f"**Weak segments by {dim}** (bottom quartile):")
+                lines.append(f"| {dim} | Total {pm} | % Share | Gap vs Top |")
+                lines.append("|---|---:|---:|---:|")
+                for name, val in weak.items():
+                    share = (float(val) / total * 100) if total else 0.0
+                    gap = ((top_val - float(val)) / top_val * 100) if top_val else 0.0
+                    lines.append(f"| {cls._fmt_md_cell(name)} | {float(val):,.2f} | {share:.1f}% | -{gap:.1f}% |")
+                    preview.append({"dimension": dim, "segment": str(name), "total": round(float(val), 2),
+                                    "share_pct": round(share, 1), "gap_vs_top_pct": round(gap, 1)})
+                top_share = top_val / total * 100 if total else 0.0
+                if top_share >= 40:
+                    lines.append(f"\n> Concentration risk: **{grp.index[0]}** alone drives {top_share:.1f}% of {pm}.")
+                lines.append("")
+
+            q25 = float(series.quantile(0.25))
+            low = series[series <= q25]
+            low_share = (float(low.sum()) / total * 100) if total else 0.0
+            lines.append(
+                f"**Bottom-quartile performers:** {len(low):,} of {len(series):,} records have {pm} <= {q25:,.2f} "
+                f"and contribute only {low_share:.1f}% of the total.\n"
+            )
+
+        null_counts = df.isna().sum()
+        null_cols = null_counts[null_counts > 0].sort_values(ascending=False)
+        if len(null_cols):
+            parts = [f"{c} ({int(n):,} missing, {n / len(df) * 100:.1f}%)" for c, n in null_cols.head(5).items()]
+            lines.append("**Missing data blind spots:** " + "; ".join(parts) + ".\n")
+        else:
+            lines.append("**Missing data blind spots:** none, every column is fully populated.\n")
+
+        var_notes: list[str] = []
+        for col in roles["measures"][:6]:
+            s = df[col].dropna()
+            if len(s) > 3 and s.mean() != 0:
+                cv = float(s.std() / abs(s.mean()))
+                q1, q3 = s.quantile(0.25), s.quantile(0.75)
+                iqr = q3 - q1
+                n_out = int(((s < q1 - 1.5 * iqr) | (s > q3 + 1.5 * iqr)).sum())
+                if cv >= 0.5 or n_out:
+                    var_notes.append(f"{col}: variability {cv * 100:.0f}% of mean, {n_out} outlier(s)")
+        if var_notes:
+            lines.append("**Variance gaps:** " + "; ".join(var_notes[:4]) + ".")
+        else:
+            lines.append("**Variance gaps:** no measure shows unusual dispersion.")
+
+        return NaturalLanguageQueryResponse(
+            dataset_id=dataset_id,
+            query=query,
+            intent="risk_analysis",
+            source="deterministic_engine",
+            target_metric=pm,
+            group_by_dimension=dims[0] if dims else None,
+            answer="\n".join(lines),
+            data_preview=preview or None,
+            confidence=0.9,
+        )
+
+    @classmethod
+    def _chart_request(cls, df: pd.DataFrame, dataset_id: str, query: str, tokens: list[str]) -> NaturalLanguageQueryResponse:
+        """Return an inline chart spec plus a button to open Visual Aggregations / Correlations."""
+        roles = classify_columns(df)
+        measures, dims = roles["measures"], roles["dimensions"]
+        m_hit = cls._phrase_matches(query, measures)
+        d_hit = cls._phrase_matches(query, dims)
+        want_scatter = any(t in tokens for t in ["scatter", "vs", "versus"]) or len(m_hit) >= 2
+
+        if want_scatter and len(measures) >= 2:
+            x, y = (m_hit + [m for m in measures if m not in m_hit])[:2]
+            sub = df[[x, y]].dropna().head(300)
+            points = [{"x": float(a), "y": float(b)} for a, b in zip(sub[x], sub[y])]
+            r = float(df[x].corr(df[y])) if len(sub) > 2 else 0.0
+            return NaturalLanguageQueryResponse(
+                dataset_id=dataset_id, query=query, intent="chart_request",
+                target_metric=y, group_by_dimension=None,
+                answer=f"### 📈 Scatter: {x} vs {y}\n\nPearson r = {r:.3f} across {len(sub):,} points.",
+                chart={"type": "scatter", "points": points, "x_label": x, "y_label": y, "label": f"{x} vs {y}"},
+                action={"label": "Open in Driver Correlations →", "target_tab": "tab-correlations",
+                        "x": x, "y": y},
+                confidence=0.9,
+            )
+
+        metric = (m_hit or measures or [None])[0]
+        dim = (d_hit or dims or [None])[0]
+        if not metric or not dim:
+            return NaturalLanguageQueryResponse(
+                dataset_id=dataset_id, query=query, intent="chart_request",
+                answer="This dataset needs at least one numeric measure and one category column to draw a chart.",
+                confidence=0.5,
+            )
+        grp = df.groupby(dim, dropna=True)[metric].sum().sort_values(ascending=False).head(12)
+        return NaturalLanguageQueryResponse(
+            dataset_id=dataset_id, query=query, intent="chart_request",
+            target_metric=metric, group_by_dimension=dim,
+            answer=(f"### 📊 Chart: {metric} by {dim}\n\nTop segment is **{grp.index[0]}** "
+                    f"with {float(grp.iloc[0]):,.2f}. Showing the top {len(grp)} categories."),
+            chart={"type": "bar", "labels": [str(i) for i in grp.index],
+                   "values": [round(float(v), 2) for v in grp.values], "label": f"{metric} (sum) by {dim}"},
+            action={"label": "Open in Visual Aggregations →", "target_tab": "tab-aggregations",
+                    "dimension": dim, "metric": metric, "function": "sum"},
+            confidence=0.9,
+        )
+
     @classmethod
     def _find_matching_column(
         cls,
@@ -433,10 +612,16 @@ class QueryService:
         columns: list[str],
         numeric_only: bool = False,
         df: pd.DataFrame | None = None,
+        query_text: str | None = None,
     ) -> str | None:
         """Fuzzy and synonym-aware column resolver."""
         col_lower_map = {c.lower(): c for c in columns}
 
+        # 0. Whole-phrase match on normalized multi-word names ("Total Spend", marketing_spend)
+        if query_text:
+            for col in cls._phrase_matches(query_text, list(columns)):
+                if not numeric_only or (df is not None and pd.api.types.is_numeric_dtype(df[col])):
+                    return col
 
         # 1. Exact match with any token or multi-token ngram
         for token in tokens:
@@ -476,8 +661,17 @@ class QueryService:
         q_clean = query.strip().lower()
         tokens = re.findall(r"\b[a-z0-9_]+\b", q_clean)
 
-        numeric_cols = list(df.select_dtypes(include=[np.number]).columns)
-        cat_cols = list(df.select_dtypes(include=["object", "category", "string"]).columns)
+        roles = classify_columns(df)
+        numeric_cols = roles["measures"] or list(df.select_dtypes(include=[np.number]).columns)
+        cat_cols = roles["dimensions"] or list(df.select_dtypes(include=["object", "category", "string"]).columns)
+
+        # Intent R: Risks & blind spots (real segment/null/variance analysis)
+        if any(term in q_clean for term in ["risk", "blind spot", "weak segment", "underperform"]):
+            return cls._risk_analysis(df=df, dataset_id=dataset_id, query=query)
+
+        # Intent C: Chart / graph request
+        if any(t in tokens for t in ["graph", "chart", "plot", "visualize", "visualise", "scatter", "visual"]):
+            return cls._chart_request(df=df, dataset_id=dataset_id, query=query, tokens=tokens)
 
         # -------------------------------------------------------------
         # Intent 0: Open-Ended Strategic Reasoning (e.g. SWOT, recommendations, why, investor pitch)
@@ -493,7 +687,7 @@ class QueryService:
         # -------------------------------------------------------------
         # Intent 1: General Dataset Count / Size
         # -------------------------------------------------------------
-        if any(phrase in q_clean for phrase in ["how many rows", "row count", "how big", "how many records", "number of rows"]):
+        if any(phrase in q_clean for phrase in ["how many rows", "row count", "how big", "how many records", "number of rows", "rows and columns", "how many columns"]):
 
             return NaturalLanguageQueryResponse(
                 dataset_id=dataset_id,
@@ -513,12 +707,14 @@ class QueryService:
 
             corr_res = AnalyticsService.compute_correlation(dataset_id=dataset_id, settings=settings)
             # Find if specific columns were mentioned
-            matched_num_cols = [c for c in numeric_cols if c.lower() in q_clean]
+            matched_num_cols = cls._phrase_matches(query, numeric_cols)
 
             if len(matched_num_cols) >= 2:
                 c1, c2 = matched_num_cols[0], matched_num_cols[1]
                 val = corr_res.matrix.get(c1, {}).get(c2)
-                strength = "strong" if val and abs(val) >= 0.7 else "moderate" if val and abs(val) >= 0.4 else "weak"
+                if val is None:
+                    val = float(df[c1].corr(df[c2]))
+                strength = "strong" if abs(val) >= 0.7 else "moderate" if abs(val) >= 0.4 else "weak"
                 ans = f"The Pearson correlation between '{c1}' and '{c2}' is {val:.3f} ({strength})."
                 preview = [{"feature_x": c1, "feature_y": c2, "correlation": val}]
             elif corr_res.top_correlations:
@@ -545,7 +741,7 @@ class QueryService:
         # Intent 3: Outlier / Anomaly Inquiry
         # -------------------------------------------------------------
         if any(term in q_clean for term in ["outlier", "anomaly", "anomalies", "abnormal", "unusual", "spike"]):
-            target_col = cls._find_matching_column(tokens, numeric_cols, numeric_only=True, df=df) or (numeric_cols[0] if numeric_cols else None)
+            target_col = cls._find_matching_column(tokens, numeric_cols, numeric_only=True, df=df, query_text=query) or (numeric_cols[0] if numeric_cols else None)
             if not target_col:
                 raise QueryInterpretationError("No numeric column found to evaluate for outliers.")
 
@@ -573,8 +769,8 @@ class QueryService:
             )
 
         # -------------------------------------------------------------
-        target_dim = cls._find_matching_column(tokens, cat_cols, numeric_only=False, df=df)
-        target_metric = cls._find_matching_column(tokens, numeric_cols, numeric_only=True, df=df)
+        target_dim = cls._find_matching_column(tokens, cat_cols, numeric_only=False, df=df, query_text=query)
+        target_metric = cls._find_matching_column(tokens, numeric_cols, numeric_only=True, df=df, query_text=query)
 
         # Inferred aggregation function
         agg_func = "sum"
@@ -592,6 +788,23 @@ class QueryService:
 
             if metric:
                 is_ascending = any(term in tokens for term in ["lowest", "worst", "bottom", "least"])
+                explicit_dim = bool(cls._phrase_matches(query, [dim])) if dim else False
+                explicit_metric = bool(cls._phrase_matches(query, [metric]))
+                if explicit_dim and explicit_metric:
+                    # Aggregate per category so the top/bottom reflects totals, not a single row.
+                    grp = df.groupby(dim, dropna=True)[metric].sum().sort_values(ascending=is_ascending)
+                    if len(grp):
+                        word = "lowest" if is_ascending else "highest"
+                        ans = (
+                            f"The {word} '{dim}' by total '{metric}' is '{grp.index[0]}' with {float(grp.iloc[0]):,.2f} "
+                            f"({float(grp.iloc[0]) / float(grp.sum()) * 100 if grp.sum() else 0:.1f}% of the total)."
+                        )
+                        prev = [{dim: str(k), f"{metric}_sum": round(float(v), 2)} for k, v in grp.head(5).items()]
+                        return NaturalLanguageQueryResponse(
+                            dataset_id=dataset_id, query=query, intent="ranking_extreme",
+                            target_metric=metric, group_by_dimension=dim, answer=ans,
+                            data_preview=prev, confidence=0.88,
+                        )
                 sorted_df = df.sort_values(by=metric, ascending=is_ascending).head(5)
 
                 top_val = float(sorted_df[metric].iloc[0])
@@ -622,22 +835,32 @@ class QueryService:
         has_by_phrase = any(w in tokens for w in ["by", "per", "across", "for each"])
 
         if (has_by_phrase or target_dim) and target_dim and target_metric:
-            req = AggregationRequest(
-                group_by=[target_dim],
-                metrics={target_metric: [agg_func]},  # type: ignore[list-item]
-                sort_by=f"{target_metric}_{agg_func}",
-                ascending=False,
-                limit=10,
-            )
-            agg_res = AnalyticsService.compute_aggregations(dataset_id=dataset_id, request=req, settings=settings)
-            records = agg_res.data
-            metric_key = f"{target_metric}_{agg_func}"
+            stats = df.groupby(target_dim, dropna=True)[target_metric].agg(["count", "sum", "mean", "min", "max", "median"])
+            sort_col = agg_func if agg_func in stats.columns else "sum"
+            stats = stats.sort_values(sort_col, ascending=False).head(15)
+            grand_total = float(df[target_metric].sum())
+            records: list[dict[str, Any]] = []
+            for name, row in stats.iterrows():
+                share = (float(row["sum"]) / grand_total * 100) if grand_total else 0.0
+                records.append({
+                    target_dim: str(name),
+                    "Count": int(row["count"]),
+                    "Sum": round(float(row["sum"]), 2),
+                    "Mean": round(float(row["mean"]), 2),
+                    "% Share": round(share, 1),
+                })
 
             if records:
-                top_row = records[0]
+                top_name = stats.index[0]
                 ans = (
-                    f"Grouped '{target_metric}' by '{target_dim}' ({agg_func}). Top result: '{top_row[target_dim]}' "
-                    f"with {top_row[metric_key]:,.2f}."
+                    f"Grouped '{target_metric}' by '{target_dim}' ({agg_func}). Top result: '{top_name}' "
+                    f"with {float(stats[sort_col].iloc[0]):,.2f}.\n\n"
+                    f"| {cls._fmt_md_cell(target_dim)} | Count | Sum | Mean | % Share |\n"
+                    f"|---|---:|---:|---:|---:|\n"
+                    + "\n".join(
+                        f"| {cls._fmt_md_cell(r[target_dim])} | {r['Count']:,} | {r['Sum']:,.2f} | {r['Mean']:,.2f} | {r['% Share']:.1f}% |"
+                        for r in records
+                    )
                 )
             else:
                 ans = f"No grouped records returned for '{target_dim}'."
@@ -651,19 +874,32 @@ class QueryService:
                 answer=ans,
                 data_preview=records,
                 confidence=0.88,
+                action={"label": "Open in Visual Aggregations →", "target_tab": "tab-aggregations",
+                        "dimension": target_dim, "metric": target_metric,
+                        "function": agg_func if agg_func in ("sum", "mean", "min", "max", "median") else "sum"},
             )
 
 
         # -------------------------------------------------------------
         # Intent 6: Filtered Metric (e.g. "revenue in North", "profit for Store A")
         # -------------------------------------------------------------
+        _FILTER_STOPWORDS = {
+            "in", "on", "at", "by", "to", "of", "or", "is", "no", "it",
+            "as", "an", "be", "do", "go", "if", "me", "my", "so", "up", "we", "us",
+            "for", "the", "and", "all", "any", "top", "sum", "max", "min", "avg",
+        }
         for cat in cat_cols:
-            unique_vals = [str(v) for v in df[cat].dropna().unique() if len(str(v)) > 1]
+            unique_vals = [str(v).strip() for v in df[cat].dropna().unique() if len(str(v).strip()) > 1]
+            # Sort longer category names first so specific values match before shorter prefixes
+            unique_vals.sort(key=len, reverse=True)
             for val in unique_vals:
-                if val.lower() in q_clean:
+                val_lower = val.lower()
+                if val_lower in _FILTER_STOPWORDS:
+                    continue
+                if re.search(rf"(?<![a-z0-9_]){re.escape(val_lower)}(?![a-z0-9_])", q_clean):
                     metric = target_metric or (numeric_cols[0] if numeric_cols else None)
                     if metric:
-                        filtered = df[df[cat].astype(str).str.lower() == val.lower()]
+                        filtered = df[df[cat].astype(str).str.strip().str.lower() == val_lower]
                         val_sum = float(filtered[metric].sum())
                         val_avg = float(filtered[metric].mean())
                         ans = (
