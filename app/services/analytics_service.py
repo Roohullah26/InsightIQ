@@ -287,6 +287,21 @@ class AnalyticsService:
         outliers.sort(key=lambda o: o.score, reverse=True)
         outlier_pct = round((len(outliers) / total_rows) * 100, 2) if total_rows > 0 else 0.0
 
+        mean_all = float(series.mean())
+        std_all = float(series.std()) if total_rows > 1 else 0.0
+        top_outliers = outliers[:100]
+        for o in top_outliers:
+            if std_all > 0.0 and not pd.isna(std_all):
+                o.z_score = round(float((o.value - mean_all) / std_all), 3)
+            else:
+                o.z_score = 0.0
+            if o.row_index in df.index:
+                raw_row = df.loc[o.row_index].to_dict()
+                o.row_data = {
+                    str(k): (None if pd.isna(v) else (v.item() if hasattr(v, "item") else v))
+                    for k, v in raw_row.items()
+                }
+
         return AnomalyDetectionResponse(
             dataset_id=dataset_id,
             column=column,
@@ -296,5 +311,6 @@ class AnalyticsService:
             outlier_percentage=outlier_pct,
             lower_bound=lower_bound,
             upper_bound=upper_bound,
-            outliers=outliers[:100],  # Cap output at top 100 outliers for performance
+            column_mean=round(mean_all, 4),
+            outliers=top_outliers,  # Cap output at top 100 outliers for performance
         )

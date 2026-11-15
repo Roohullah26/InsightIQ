@@ -263,13 +263,24 @@ class InsightsService:
                             f"to identify service bottlenecks, fulfillment delays, or localized churn risks."
                         )
 
+                    # Clamp the displayed lower fence at 0 for strictly non-negative metrics
+                    disp_lower = max(0.0, lower_bound) if float(clean_s.min()) >= 0.0 else lower_bound
+                    ext_z_val = abs(extreme_val - mean_val) / std_val if std_val > 0 else 0.0
+                    if iqr > 0 and (extreme_val > upper_bound or extreme_val < lower_bound):
+                        test_copy = ""
+                    else:
+                        test_copy = (
+                            f" Breached the parametric Z-score threshold (|z| = {ext_z_val:.2f}σ > 2.5σ) "
+                            f"while remaining within the wide IQR fence."
+                        )
+
                     insights.append(
                         InsightItem(
                             title=f"Statistical Anomalies in {col.replace('_', ' ').title()}",
                             category="anomaly",
                             severity="warning",
                             summary=f"Detected {count} extreme data point(s) in '{col}' deviating substantially from normal distribution (IQR 1.5x / |z| > 2.5).",
-                            evidence=f"Bounds: [{lower_bound:,.2f}, {upper_bound:,.2f}]. Extreme value observed: {extreme_val:,.2f}.",
+                            evidence=f"Bounds: [{disp_lower:,.2f}, {upper_bound:,.2f}]. Extreme value observed: {extreme_val:,.2f}.{test_copy}",
                             recommendation=anomaly_rec,
                             confidence_badge=f"n = {len(clean_s)} | Hybrid Outlier Filter",
                             action_link={

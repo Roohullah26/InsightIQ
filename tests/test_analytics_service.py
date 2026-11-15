@@ -156,3 +156,18 @@ def test_outlier_detection_rejects_non_numeric_column(analytics_test_setup):
     settings, dataset_id = analytics_test_setup
     with pytest.raises(AnalyticsError, match="is not numeric"):
         AnalyticsService.detect_outliers(dataset_id, "region", settings)
+
+
+def test_outlier_records_include_row_context_zscore_and_column_mean(tmp_path):
+    """Verify outliers carry full row context, a signed z-score, and the column mean."""
+    settings = Settings(data_dir=tmp_path / "ctx_data", _env_file=None)
+    csv_data = "store,score\n" + "".join(f"S{i},10\n" for i in range(1, 10)) + "Outlier Store,-999\n"
+    res = DatasetService.ingest_csv(csv_data.encode("utf-8"), "ctx.csv", settings)
+
+    out = AnalyticsService.detect_outliers(res.summary.dataset_id, "score", settings, method="hybrid")
+    assert out.outlier_count == 1
+    assert out.column_mean == pytest.approx((9 * 10 - 999) / 10, abs=1e-3)
+    rec = out.outliers[0]
+    assert rec.row_index == 9
+    assert rec.row_data == {"store": "Outlier Store", "score": -999}
+    assert rec.z_score is not None and rec.z_score < 0

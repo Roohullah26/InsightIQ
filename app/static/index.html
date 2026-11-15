@@ -5,119 +5,249 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>InsightIQ — AI-Powered Business Intelligence Platform</title>
   <meta name="description" content="Enterprise AI-powered Business Intelligence platform with automated exploratory data profiling, causal correlation matrices, outlier detection, and natural language data querying.">
-  <link rel="stylesheet" href="/static/dashboard.css?v=20261101a">
+  <link rel="stylesheet" href="/static/dashboard.css?v=20261110h">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
-  <!-- Navigation Header -->
-  <header class="header">
-    <a href="#" class="brand">
-      <div class="brand-icon">IQ</div>
-      <div class="brand-info">
-        <h1 class="brand-title">InsightIQ</h1>
-        <span class="brand-badge">Enterprise BI</span>
+  <!-- 1. Single-Row Sticky Command Bar (Left: Brand · Center: Dataset · Right: Actions) -->
+  <header class="header header-command-bar">
+    <div class="header-zone header-zone-left">
+      <a href="#" class="brand">
+        <div class="brand-icon">IQ</div>
+        <div class="brand-info">
+          <h1 class="brand-title">InsightIQ</h1>
+          <span class="brand-badge">Enterprise BI</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="header-zone header-zone-center">
+      <div class="toolbar-dataset-group">
+        <label for="dataset-picker" class="toolbar-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7c0-2-1.5-3-3.5-3h-9C5.5 4 4 5 4 7z"></path>
+            <path d="M9 12h6"></path>
+            <path d="M9 16h6"></path>
+          </svg>
+          <span>Active Dataset:</span>
+        </label>
+        <div class="select-wrapper">
+          <select id="dataset-picker" class="toolbar-select" aria-label="Select active dataset">
+            <option value="">Loading datasets...</option>
+          </select>
+        </div>
+        <button id="load-demo-btn" class="demo-status-badge" type="button" title="Load sample enterprise performance dataset">
+          <span class="demo-badge-dot"></span>
+          <span id="demo-btn-text">Demo Dataset</span>
+        </button>
       </div>
-    </a>
-    <div class="header-status">
-      <div class="status-indicator" id="system-status">
-        <span class="status-dot"></span>
-        <span id="system-status-text">API Online (v0.1.0)</span>
+    </div>
+
+    <div class="header-zone header-zone-right">
+      <!-- Primary Action Controls + Safe Overflow Dropdown -->
+      <div class="toolbar-actions">
+        <button id="toggle-upload-btn" class="btn-toolbar" type="button" title="Upload new CSV dataset">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          <span id="upload-btn-label">+ Upload CSV</span>
+        </button>
+
+        <button id="open-schema-btn" class="btn-toolbar btn-secondary" type="button" title="Preview raw data table and column schema dictionary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="3" y1="9" x2="21" y2="9"></line>
+            <line x1="9" y1="21" x2="9" y2="9"></line>
+          </svg>
+          <span>Preview Schema</span>
+        </button>
+
+        <!-- Secondary Overflow Dropdown (⋯) Tucking Destructive Delete Action -->
+        <details class="toolbar-overflow-menu" id="toolbar-overflow-menu">
+          <summary class="btn-toolbar btn-overflow-trigger" title="More dataset actions" aria-label="More dataset actions">⋯</summary>
+          <div class="toolbar-overflow-dropdown">
+            <button id="delete-dataset-btn" class="btn-toolbar btn-danger overflow-delete-item" type="button" title="Delete current dataset">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                <line x1="10" y1="11" x2="10" y2="17"></line>
+                <line x1="14" y1="11" x2="14" y2="17"></line>
+              </svg>
+              <span>Delete Dataset</span>
+            </button>
+          </div>
+        </details>
       </div>
     </div>
   </header>
 
-  <main class="container">
+  <!-- 2-Pane Enterprise App Shell (Left Collapsible Sidebar + Fluid Main Workspace) -->
+  <div class="app-shell" id="app-shell">
 
-    <!-- Unified Dataset Toolbar Section -->
-    <section class="toolbar-section" aria-label="Dataset Workspace and Controls">
-      <div class="toolbar-bar">
-        <!-- Active Dataset Dropdown Selector & Subtle Demo Badge -->
-        <div class="toolbar-dataset-group">
-          <label for="dataset-picker" class="toolbar-label">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7c0-2-1.5-3-3.5-3h-9C5.5 4 4 5 4 7z"></path>
-              <path d="M9 12h6"></path>
-              <path d="M9 16h6"></path>
-            </svg>
-            <span>Active Dataset:</span>
-          </label>
-          <div class="select-wrapper">
-            <select id="dataset-picker" class="toolbar-select" aria-label="Select active dataset">
-              <option value="">Loading datasets...</option>
-            </select>
+    <!-- Left Main Menu Sidebar -->
+    <aside class="app-sidebar" id="app-sidebar" aria-label="Main Navigation Sidebar">
+      <div class="sidebar-top">
+        <!-- Categorized Menu Groups -->
+        <nav class="tab-nav sidebar-nav" aria-label="Dashboard Views">
+          <div class="sidebar-menu-group">
+            <div class="sidebar-group-header sidebar-group-header-top">
+              <span class="sidebar-group-title">AI INTELLIGENCE</span>
+              <button id="sidebar-collapse-btn" class="sidebar-collapse-btn" type="button" title="Collapse or expand sidebar" aria-label="Collapse or expand sidebar" aria-expanded="true">
+                <span id="sidebar-collapse-icon">«</span>
+              </button>
+            </div>
+            <button class="tab-btn active" data-tab="tab-insights" id="btn-tab-insights" type="button" title="AI Executive Insights">
+              <span class="sidebar-item-left">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+                </svg>
+                <span class="sidebar-item-text">AI Executive Insights</span>
+              </span>
+              <span class="tab-badge badge-cyan" id="badge-insights">0</span>
+            </button>
+
+            <button class="tab-btn" data-tab="tab-chat" id="btn-tab-chat" type="button" title="Talk to Your Data">
+              <span class="sidebar-item-left">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+                <span class="sidebar-item-text">Talk to Your Data</span>
+              </span>
+              <span class="tab-badge badge-ai">AI</span>
+            </button>
           </div>
-          <!-- Subtle Demo Dataset Status Badge / Trigger next to selector -->
-          <button id="load-demo-btn" class="demo-status-badge" type="button" title="Load sample enterprise performance dataset">
-            <span class="demo-badge-dot"></span>
-            <span id="demo-btn-text">Demo Dataset</span>
-          </button>
-        </div>
 
-        <!-- Primary Action Controls -->
-        <div class="toolbar-actions">
-          <!-- Compact Upload CSV Button -->
-          <button id="toggle-upload-btn" class="btn-toolbar" type="button" title="Upload new CSV dataset">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="17 8 12 3 7 8"></polyline>
-              <line x1="12" y1="3" x2="12" y2="15"></line>
-            </svg>
-            <span id="upload-btn-label">+ Upload CSV</span>
-          </button>
+          <div class="sidebar-menu-group">
+            <div class="sidebar-group-header">DATA EXPLORATION</div>
+            <button class="tab-btn" data-tab="tab-profile" id="btn-tab-profile" type="button" title="Exploratory Profile">
+              <span class="sidebar-item-left">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="8" y1="6" x2="21" y2="6"></line>
+                  <line x1="8" y1="12" x2="21" y2="12"></line>
+                  <line x1="8" y1="18" x2="21" y2="18"></line>
+                  <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                  <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                  <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                </svg>
+                <span class="sidebar-item-text">Exploratory Profile</span>
+              </span>
+            </button>
 
-          <!-- Preview Raw Data / Schema Drawer Toggle -->
-          <button id="open-schema-btn" class="btn-toolbar btn-secondary" type="button" title="Preview raw data table and column schema dictionary">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="3" y1="9" x2="21" y2="9"></line>
-              <line x1="9" y1="21" x2="9" y2="9"></line>
-            </svg>
-            <span>Preview Schema</span>
-          </button>
+            <button class="tab-btn" data-tab="tab-correlations" id="btn-tab-correlations" type="button" title="Driver Correlations">
+              <span class="sidebar-item-left">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="18" cy="5" r="3"></circle>
+                  <circle cx="6" cy="12" r="3"></circle>
+                  <circle cx="18" cy="19" r="3"></circle>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                </svg>
+                <span class="sidebar-item-text">Driver Correlations</span>
+              </span>
+            </button>
 
-          <!-- Delete / Remove Dataset Button -->
-          <button id="delete-dataset-btn" class="btn-toolbar btn-danger" type="button" title="Delete current dataset">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-              <line x1="10" y1="11" x2="10" y2="17"></line>
-              <line x1="14" y1="11" x2="14" y2="17"></line>
-            </svg>
-            <span>Delete</span>
-          </button>
-        </div>
+            <button class="tab-btn" data-tab="tab-aggregations" id="btn-tab-aggregations" type="button" title="Visual Aggregations">
+              <span class="sidebar-item-left">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="20" x2="18" y2="10"></line>
+                  <line x1="12" y1="20" x2="12" y2="4"></line>
+                  <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+                <span class="sidebar-item-text">Visual Aggregations</span>
+              </span>
+            </button>
+          </div>
+
+          <div class="sidebar-menu-group">
+            <div class="sidebar-group-header">GOVERNANCE &amp; AUDIT</div>
+            <button class="tab-btn" data-tab="tab-anomalies" id="btn-tab-anomalies" type="button" title="Anomaly Inspector">
+              <span class="sidebar-item-left">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                  <line x1="12" y1="9" x2="12" y2="13"></line>
+                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                <span class="sidebar-item-text">Anomaly Inspector</span>
+              </span>
+              <span class="tab-badge badge-warning" id="badge-anomalies">0</span>
+            </button>
+
+            <button class="tab-btn" data-tab="tab-truthlens" id="btn-tab-truthlens" type="button" title="TruthLens">
+              <span class="sidebar-item-left">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <span class="sidebar-item-text">TruthLens</span>
+              </span>
+              <span class="tab-badge badge-truthlens" id="badge-truthlens">0</span>
+            </button>
+          </div>
+        </nav>
       </div>
 
-      <!-- Collapsible Drag & Drop Upload Zone (auto-collapses when dataset is loaded) -->
-      <div class="dropzone-collapsible collapsed" id="dropzone-container">
+      <!-- Sidebar Footer: Single Clean Status Pill (API Online + Dataset Memory Footprint) -->
+      <div class="sidebar-footer" id="sidebar-dataset-meta" title="System status &amp; active dataset memory footprint">
+        <div class="status-indicator sidebar-unified-pill" id="system-status">
+          <span class="status-dot" id="sidebar-health-dot"></span>
+          <span id="system-status-text">API Online v0.1.0</span>
+          <span class="sidebar-pill-sep">·</span>
+          <span class="sidebar-meta-text" id="sidebar-meta-text">7.4 KB</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Fluid Main Workspace -->
+    <main class="container main-workspace" id="main-workspace">
+
+    <!-- Collapsible Drag & Drop Upload Zone (Hidden by Default) -->
+    <section class="toolbar-section" aria-label="Dataset Upload Dropzone">
+      <div class="dropzone-collapsible collapsed" id="dropzone-container" style="display: none;" hidden>
+        <input type="file" id="file-input" class="file-input" accept=".csv" style="display: none;">
         <div class="dropzone-card" id="dropzone" role="button" tabindex="0" aria-label="Dropzone for uploading CSV files">
-          <input type="file" id="file-input" class="file-input" accept=".csv">
-          <div class="dropzone-icon">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="17 8 12 3 7 8"></polyline>
-              <line x1="12" y1="3" x2="12" y2="15"></line>
-            </svg>
+          <div class="dropzone-left">
+            <div class="dropzone-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+            </div>
+            <div class="dropzone-copy">
+              <div class="dropzone-title">Drop your CSV dataset here</div>
+              <div class="dropzone-subtitle">Click to browse or drag file (up to 10 MB)</div>
+            </div>
           </div>
-          <div class="dropzone-title">Drop your CSV dataset here</div>
-          <div class="dropzone-subtitle">Click to browse or drag file (up to 10 MB) · <button id="close-dropzone-btn" class="btn-text-link" type="button">Collapse</button></div>
+          <button id="close-dropzone-btn" class="btn-text-link" type="button">Collapse</button>
         </div>
       </div>
     </section>
 
-    <!-- Enriched KPI Summary Row -->
-    <section class="kpi-grid" aria-label="Key Performance Indicators">
+    <!-- 2. Compact 4-Column KPI Ribbon with Sandbox State Isolation -->
+    <div class="kpi-ribbon-wrapper" id="global-kpi-ribbon-wrapper">
+      <div class="kpi-sandbox-floating-pill" id="kpi-sandbox-banner" style="display:none;">
+        <span class="tl-context-dot"></span>
+        <span>Global Workspace Paused — Viewing Scenario Preview below</span>
+        <button type="button" class="kpi-sandbox-return-btn" id="kpi-sandbox-return-btn">Return to Active Dataset</button>
+      </div>
+      <section class="kpi-grid" id="global-kpi-grid" aria-label="Key Performance Indicators">
       <!-- KPI 1: Data Health Score -->
-      <div class="kpi-card" id="kpi-card-health">
+      <div class="kpi-card kpi-accent-emerald" id="kpi-card-health">
         <div class="kpi-header">
-          <span class="kpi-label">Data Health Score</span>
+          <span class="kpi-label" title="Data Health Score">Data Health</span>
           <span class="kpi-info-trigger" id="health-info-icon" title="View 4-dimension scoring formula">ⓘ</span>
         </div>
         <div class="kpi-value-row">
           <div class="kpi-value" id="kpi-health">—</div>
         </div>
-        <div class="kpi-subtext" id="kpi-health-subtext">Weighted multi-factor data health index</div>
+        <div class="kpi-meter" aria-hidden="true"><div class="kpi-meter-fill" id="kpi-health-bar" style="width:0%"></div></div>
+        <div class="kpi-subtext" id="kpi-health-subtext">270 / 270 valid cells</div>
         <!-- Health Breakdown Tooltip -->
         <div class="health-breakdown-tooltip" id="health-tooltip">
           <div class="tooltip-title">Data Health Formula (100 pts)</div>
@@ -130,101 +260,42 @@
       </div>
 
       <!-- KPI 2: Total Records -->
-      <div class="kpi-card" id="kpi-card-records">
+      <div class="kpi-card kpi-accent-sky" id="kpi-card-records">
         <div class="kpi-header">
-          <span class="kpi-label">Total Records</span>
+          <span class="kpi-label" title="Total Records">Total Records</span>
         </div>
         <div class="kpi-value-row">
           <div class="kpi-value" id="kpi-rows">—</div>
           <span class="kpi-badge-wrapper" id="kpi-rows-badge"></span>
         </div>
-        <div class="kpi-subtext" id="kpi-rows-subtext">Total analyzed dataset rows</div>
+        <div class="kpi-subtext" id="kpi-rows-subtext">7.4 KB memory</div>
       </div>
 
       <!-- KPI 3: Features / Columns -->
-      <div class="kpi-card" id="kpi-card-features">
+      <div class="kpi-card kpi-accent-indigo" id="kpi-card-features">
         <div class="kpi-header">
-          <span class="kpi-label">Features / Columns</span>
+          <span class="kpi-label" title="Features / Columns">Features</span>
         </div>
         <div class="kpi-value-row">
           <div class="kpi-value" id="kpi-cols">—</div>
         </div>
-        <div class="kpi-subtext" id="kpi-cols-subtext">Categorical &amp; numeric attributes</div>
+        <div class="kpi-stack-bar" id="kpi-cols-bar" aria-hidden="true"></div>
+        <div class="kpi-subtext" id="kpi-cols-subtext">4 Num · 2 Cat</div>
       </div>
 
       <!-- KPI 4: Anomalies Flagged -->
-      <div class="kpi-card" id="kpi-card-anomalies">
+      <div class="kpi-card kpi-accent-amber" id="kpi-card-anomalies">
         <div class="kpi-header">
-          <span class="kpi-label">Anomalies Flagged</span>
+          <span class="kpi-label" title="Anomalies Flagged">Anomalies</span>
         </div>
         <div class="kpi-value-row">
           <div class="kpi-value" id="kpi-anomalies">—</div>
           <span class="kpi-badge-wrapper" id="kpi-anomalies-badge"></span>
         </div>
-        <div class="kpi-subtext" id="kpi-anomalies-subtext">Across numeric features | IQR &amp; Z-Score</div>
+        <div class="kpi-subtext" id="kpi-anomalies-subtext">2 rows · 2 cols</div>
       </div>
     </section>
-
-    <!-- Interactive Navigation Tabs with Icons and Actionable Count Badges -->
-    <nav class="tab-nav" aria-label="Dashboard Views">
-      <button class="tab-btn active" data-tab="tab-insights" id="btn-tab-insights" type="button">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
-        </svg>
-        <span>AI Executive Insights</span>
-        <span class="tab-badge" id="badge-insights">0</span>
-      </button>
-
-      <button class="tab-btn" data-tab="tab-chat" id="btn-tab-chat" type="button">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-        </svg>
-        <span>Talk to Your Data</span>
-        <span class="tab-badge badge-ai">AI</span>
-      </button>
-
-      <button class="tab-btn" data-tab="tab-profile" id="btn-tab-profile" type="button">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="8" y1="6" x2="21" y2="6"></line>
-          <line x1="8" y1="12" x2="21" y2="12"></line>
-          <line x1="8" y1="18" x2="21" y2="18"></line>
-          <line x1="3" y1="6" x2="3.01" y2="6"></line>
-          <line x1="3" y1="12" x2="3.01" y2="12"></line>
-          <line x1="3" y1="18" x2="3.01" y2="18"></line>
-        </svg>
-        <span>Exploratory Profile</span>
-      </button>
-
-      <button class="tab-btn" data-tab="tab-correlations" id="btn-tab-correlations" type="button">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="18" cy="5" r="3"></circle>
-          <circle cx="6" cy="12" r="3"></circle>
-          <circle cx="18" cy="19" r="3"></circle>
-          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-        </svg>
-        <span>Driver Correlations</span>
-      </button>
-
-      <button class="tab-btn" data-tab="tab-aggregations" id="btn-tab-aggregations" type="button">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="20" x2="18" y2="10"></line>
-          <line x1="12" y1="20" x2="12" y2="4"></line>
-          <line x1="6" y1="20" x2="6" y2="14"></line>
-        </svg>
-        <span>Visual Aggregations</span>
-      </button>
-
-      <button class="tab-btn" data-tab="tab-anomalies" id="btn-tab-anomalies" type="button">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-          <line x1="12" y1="9" x2="12" y2="13"></line>
-          <line x1="12" y1="17" x2="12.01" y2="17"></line>
-        </svg>
-        <span>Anomaly Inspector</span>
-        <span class="tab-badge badge-warning" id="badge-anomalies">0</span>
-      </button>
-    </nav>
+    </div>
 
     <!-- Tab 1: AI Executive Insights -->
     <section id="tab-insights" class="tab-pane active" aria-labelledby="btn-tab-insights">
@@ -322,11 +393,22 @@
 
     <!-- Tab 3: Exploratory Profile -->
     <section id="tab-profile" class="tab-pane" aria-labelledby="btn-tab-profile">
-      <div class="data-table-container">
-        <table id="preview-table">
-          <thead id="preview-table-head"></thead>
-          <tbody id="preview-table-body"></tbody>
-        </table>
+      <div class="data-table-container preview-table-card">
+        <div class="preview-table-toolbar" id="preview-table-toolbar">
+          <div class="preview-table-title-group">
+            <span class="preview-table-title" id="preview-table-title">Sample Records Preview (Top 5 of 45 rows)</span>
+            <span class="preview-table-badge" id="preview-table-col-badge">6 Columns</span>
+          </div>
+          <div class="preview-table-controls">
+            <input type="search" id="preview-table-filter" class="preview-table-search" placeholder="Filter preview rows..." aria-label="Filter sample preview rows">
+          </div>
+        </div>
+        <div class="preview-table-scroll-wrap">
+          <table id="preview-table">
+            <thead id="preview-table-head"></thead>
+            <tbody id="preview-table-body"></tbody>
+          </table>
+        </div>
       </div>
       <div class="column-cards-grid" id="column-cards-container">
         <!-- Rendered dynamically -->
@@ -335,9 +417,13 @@
 
     <!-- Tab 4: Correlations -->
     <section id="tab-correlations" class="tab-pane" aria-labelledby="btn-tab-correlations">
-      <div class="chart-card">
-        <div class="chart-header">
-          <h2 class="chart-title">Key Feature Relationships &amp; Cross-Drivers</h2>
+      <div class="chart-card corr-workspace-card">
+        <div class="chart-header corr-workspace-header">
+          <div>
+            <h2 class="chart-title">Key Feature Relationships &amp; Cross-Drivers</h2>
+            <p class="corr-workspace-subtitle">Pairwise Pearson correlation (r), explained shared variance (R² = r² × 100%), and N×N cluster matrix</p>
+          </div>
+          <span class="corr-header-pill" id="corr-summary-pill">6 Feature Pairs · 4 Numeric Drivers</span>
         </div>
         <div id="correlations-container">
           <!-- Rendered dynamically -->
@@ -347,7 +433,7 @@
 
     <!-- Tab 5: Aggregations & Visual Chart -->
     <section id="tab-aggregations" class="tab-pane" aria-labelledby="btn-tab-aggregations">
-      <div class="chart-card">
+      <div class="chart-card agg-workspace-card">
         <div class="agg-controls-grid">
           <div class="agg-control-group">
             <label for="agg-dim-select" class="agg-control-label">Group By</label>
@@ -385,38 +471,295 @@
             </select>
           </div>
         </div>
-        <h3 id="agg-chart-title" class="agg-chart-title">Visual Aggregation</h3>
-        <div style="height: 380px; position: relative;">
-          <canvas id="agg-chart"></canvas>
+
+        <!-- 2-Column Split: Left = 270px Zero-Baseline Chart, Right = Live Aggregation Breakdown Table -->
+        <div class="agg-workspace-split" id="agg-workspace-split">
+          <div class="agg-chart-pane">
+            <div class="agg-chart-header-row">
+              <h3 id="agg-chart-title" class="agg-chart-title">Visual Aggregation</h3>
+              <span class="agg-subtitle-pill" id="agg-chart-subtitle-pill">Total: —</span>
+            </div>
+            <div class="agg-chart-canvas-wrap">
+              <canvas id="agg-chart"></canvas>
+            </div>
+          </div>
+
+          <div class="agg-breakdown-pane" id="agg-breakdown-pane">
+            <div class="agg-breakdown-header">
+              <div class="agg-breakdown-title-wrap">
+                <span class="agg-breakdown-title">Live Aggregation Breakdown</span>
+                <span class="agg-breakdown-mean-tag" id="agg-breakdown-mean-tag">Mean: —</span>
+              </div>
+              <div class="agg-breakdown-actions">
+                <button type="button" class="agg-micro-btn" id="agg-copy-table-btn" title="Copy breakdown table to clipboard">Copy Table</button>
+                <button type="button" class="agg-micro-btn" id="agg-export-csv-btn" title="Download breakdown table as CSV">Export CSV</button>
+              </div>
+            </div>
+            <div class="agg-breakdown-table-wrap">
+              <table class="agg-breakdown-table" id="agg-breakdown-table">
+                <thead id="agg-breakdown-head">
+                  <tr>
+                    <th>Group</th>
+                    <th class="num-col">n</th>
+                    <th class="num-col">Value</th>
+                    <th>% Share</th>
+                    <th class="num-col">vs. Mean</th>
+                  </tr>
+                </thead>
+                <tbody id="agg-breakdown-body"></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Tab 6: Anomaly Inspector -->
+    <!-- Tab 6: Anomaly Inspector (Enterprise Outlier Workbench) -->
     <section id="tab-anomalies" class="tab-pane" aria-labelledby="btn-tab-anomalies">
-      <div class="chart-card">
-        <div class="controls-row">
-          <div>
-            <label for="anomaly-col-select" class="card-label">Inspect Column</label>
+      <div class="chart-card anomaly-workbench-card">
+        <!-- 1. Dataset Anomaly Summary Strip ("All Flagged Features" Overview Pills) -->
+        <div class="anomaly-feature-strip" id="anomaly-feature-strip" role="region" aria-label="Dataset Anomaly Summary Strip">
+          <span class="anomaly-strip-label">All Flagged Features:</span>
+          <div class="anomaly-feature-pills" id="anomaly-feature-pills">
+            <span class="anomaly-strip-empty">Load a dataset to see flagged features.</span>
+          </div>
+        </div>
+
+        <!-- 2. Single-Row Horizontal Control Bar -->
+        <div class="anomaly-toolbar-bar" id="anomaly-toolbar-bar">
+          <div class="anomaly-control-group">
+            <label for="anomaly-col-select" class="card-label anomaly-control-label">INSPECT COLUMN</label>
             <select id="anomaly-col-select" class="select-input"></select>
           </div>
-          <div>
-            <label for="anomaly-method-select" class="card-label">Detection Method</label>
+          <div class="anomaly-control-group">
+            <label for="anomaly-method-select" class="card-label anomaly-control-label">DETECTION METHOD</label>
             <select id="anomaly-method-select" class="select-input">
               <option value="hybrid">Ensemble (IQR 1.5x + Z-Score 2.5)</option>
               <option value="iqr">Interquartile Range (1.5 * IQR)</option>
               <option value="zscore">Z-Score (|z| &gt; 2.5)</option>
             </select>
           </div>
-          <button id="scan-anomalies-btn" class="btn-primary" style="margin-top:1.3rem;" type="button">Scan for Anomalies</button>
+          <button id="scan-anomalies-btn" class="btn-primary anomaly-scan-btn" type="button">Scan for Anomalies</button>
         </div>
+
+        <!-- 3 & 4. 2-Column IQR Diagnostic Banner + 6-Column Contextual Anomaly Results Table -->
         <div id="anomalies-result-container">
           <!-- Rendered dynamically -->
         </div>
       </div>
     </section>
 
-  </main>
+    <!-- Tab 7: TruthLens — Evidence-Based Intelligence Engine -->
+    <section id="tab-truthlens" class="tab-pane" aria-labelledby="btn-tab-truthlens">
+      <!-- Hero & Benchmark Scenario Switcher -->
+      <div class="truthlens-hero-card">
+        <div class="truthlens-hero-top">
+          <div>
+            <div class="truthlens-brand-row">
+              <span class="truthlens-pill-tag">5-Layer Evidence Engine</span>
+              <h2 class="truthlens-hero-title">TruthLens — Evidence-Based Intelligence</h2>
+            </div>
+            <p class="truthlens-hero-verdict" id="truthlens-verdict">
+              Auditing dataset for misleading averages, KPI contradictions, hidden segment declines, and sampling distortions...
+            </p>
+            <div class="tl-context-banner" id="tl-context-indicator" style="display:none;">
+              <span class="tl-context-dot"></span>
+              <span id="tl-context-text">Scenario Preview Mode — Global active workspace dataset preserved</span>
+              <button type="button" class="tl-promote-btn" id="tl-promote-scenario-btn" title="Persist this benchmark scenario as the active dataset across all dashboard tabs">
+                Load Scenario into Global Workspace ↗
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Compact TruthLens Reliability Pill Strip (4-Card Redundant Grid Hidden when Badges Present) -->
+        <div class="truthlens-kpi-strip" id="truthlens-kpi-strip" style="display:none;">
+          <div class="tl-stat-card">
+            <div class="tl-stat-label">Total Insights Detected</div>
+            <div class="tl-stat-value-row">
+              <span class="tl-stat-value" id="tl-kpi-total">0</span>
+              <span class="kpi-tag info" id="tl-kpi-total-badge">Verified</span>
+            </div>
+            <div class="tl-stat-sub" id="tl-kpi-total-sub">100% backed by numerical evidence</div>
+          </div>
+
+          <div class="tl-stat-card">
+            <div class="tl-stat-label">Critical &amp; High-Priority Findings</div>
+            <div class="tl-stat-value-row">
+              <span class="tl-stat-value" id="tl-kpi-critical-high">0</span>
+              <span class="kpi-tag danger" id="tl-kpi-priority-badge">Priority</span>
+            </div>
+            <div class="tl-stat-sub" id="tl-kpi-priority-sub">0 Critical · 0 High · 0 Medium</div>
+          </div>
+
+          <div class="tl-stat-card">
+            <div class="tl-stat-label">Data Reliability Indicator</div>
+            <div class="tl-stat-value-row">
+              <span class="tl-stat-value" id="tl-kpi-reliability">--</span>
+              <span class="kpi-tag success" id="tl-reliability-badge">Audited</span>
+            </div>
+            <div class="tl-stat-sub" id="tl-reliability-sub">Completeness &amp; distortion assessment</div>
+          </div>
+
+          <div class="tl-stat-card">
+            <div class="tl-stat-label">Alert Category Breakdown</div>
+            <div class="tl-stat-value-row">
+              <span class="tl-stat-value" id="tl-kpi-contradictions">0</span>
+              <span class="kpi-tag warning">KPI Contradictions</span>
+            </div>
+            <div class="tl-stat-sub" id="tl-kpi-breakdown-sub">0 Segment Warnings · 0 Anomalies</div>
+          </div>
+        </div>
+
+        <!-- Dataset Audit Summary Banner (dataset-wide guardrails shown once, not per card) -->
+        <div class="tl-audit-banner" id="truthlens-audit-banner" style="display:none;"></div>
+      </div>
+
+      <!-- Condensed 2-Row TruthLens Command Toolbar: Row 1 (Scenario + Severity) | Row 2 (Domain + Expand) -->
+      <div class="truthlens-controls-stack truthlens-unified-toolbar">
+        <div class="tl-toolbar-row-primary">
+          <div class="truthlens-scenario-group" id="truthlens-scenario-bar" role="group" aria-label="TruthLens Benchmark Scenarios">
+            <span class="tl-filter-group-label">Scenario:</span>
+            <button type="button" class="tl-scenario-btn active" data-scenario="active" id="tl-btn-active">Active Dataset</button>
+            <button type="button" class="tl-scenario-btn" data-scenario="scenario_a" id="tl-btn-scenario-a" title="Revenue +40%, Marketing +133.3%, Gross Profit -20%">A: Revenue vs. Profit</button>
+            <button type="button" class="tl-scenario-btn" data-scenario="scenario_b" id="tl-btn-scenario-b" title="Satisfaction 3.8→4.6, Survey Responses -82%, Churn 4%→8%">B: Satisfaction vs. Churn</button>
+            <button type="button" class="tl-scenario-btn" data-scenario="scenario_c" id="tl-btn-scenario-c" title="Total Revenue +10% hiding declines in 2 of 3 categories">C: Category Declines</button>
+          </div>
+
+          <div class="truthlens-severity-bar" id="truthlens-severity-bar" role="group" aria-label="Filter TruthLens findings by severity">
+            <span class="tl-filter-group-label">Severity:</span>
+            <button type="button" class="tl-severity-chip active" data-severity="all" id="tl-sev-btn-all">
+              All <span class="tl-chip-count" id="tl-sev-count-all">0</span>
+            </button>
+            <button type="button" class="tl-severity-chip sev-critical" data-severity="Critical" id="tl-sev-btn-critical">
+              Critical <span class="tl-chip-count" id="tl-sev-count-critical">0</span>
+            </button>
+            <button type="button" class="tl-severity-chip sev-high" data-severity="High" id="tl-sev-btn-high">
+              High <span class="tl-chip-count" id="tl-sev-count-high">0</span>
+            </button>
+            <button type="button" class="tl-severity-chip sev-medium" data-severity="Medium" id="tl-sev-btn-medium">
+              Medium <span class="tl-chip-count" id="tl-sev-count-medium">0</span>
+            </button>
+            <button type="button" class="tl-severity-chip sev-low" data-severity="Low" id="tl-sev-btn-low">
+              Low <span class="tl-chip-count" id="tl-sev-count-low">0</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="tl-toolbar-row-secondary">
+          <div class="truthlens-filter-bar" id="truthlens-filter-bar" role="tablist" aria-label="Filter TruthLens findings by category">
+            <span class="tl-filter-group-label">Domain:</span>
+            <button type="button" class="tl-filter-chip active" data-filter="all">All</button>
+            <button type="button" class="tl-filter-chip" data-filter="kpi_contradiction">KPI Contradictions</button>
+            <button type="button" class="tl-filter-chip" data-filter="hidden_segment_decline">Segment Warnings</button>
+            <button type="button" class="tl-filter-chip" data-filter="sampling_and_response_bias">Sampling Bias</button>
+            <button type="button" class="tl-filter-chip" data-filter="misleading_averages">Misleading Averages</button>
+            <button type="button" class="tl-filter-chip" data-filter="correlation_vs_causation">Correlation vs. Causation</button>
+            <button type="button" class="tl-filter-chip" data-filter="statistical_anomalies">Anomalies &amp; Quality</button>
+          </div>
+
+          <button type="button" class="tl-expand-all-btn" id="tl-toggle-all-cards-btn" data-expanded="false">
+            Expand All Audit Drawers ▾
+          </button>
+        </div>
+      </div>
+
+      <!-- 4. Scannable 3-Block TruthLens Findings Grid -->
+      <div id="truthlens-findings-container" class="truthlens-findings-grid">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Hidden Legacy Trace DOM Container (Lineage now embedded inside each card's Audit Drawer) -->
+      <div class="truthlens-trace-panel" id="truthlens-trace-panel" style="display:none;" aria-hidden="true">
+        <div id="truthlens-trace-meta"></div>
+        <table id="truthlens-trace-table"><tbody id="truthlens-trace-tbody"></tbody></table>
+      </div>
+
+      <!-- Compact Horizontal Evidence Guardrail Row -->
+      <div class="truthlens-guardrail-panel" id="truthlens-insufficient-panel">
+        <div class="truthlens-guardrail-header">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          </svg>
+          <span>Evidence Guardrail — Checks Withheld</span>
+        </div>
+        <div id="truthlens-insufficient-container" class="truthlens-insufficient-list">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+    </section>
+
+    </main>
+  </div>
+
+  <!-- TruthLens Individual Insight Detail Slide-Over Drawer (Evidence Table + Supporting Visualization + Source Rows) -->
+  <dialog id="truthlens-detail-dialog" class="schema-dialog truthlens-dialog tl-slideover-drawer" aria-labelledby="tl-dialog-title">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <div>
+          <div class="tl-dialog-badges" id="tl-dialog-badges"></div>
+          <h2 class="dialog-title" id="tl-dialog-title">TruthLens Finding Detail</h2>
+          <div class="dialog-subtitle" id="tl-dialog-baseline">Comparison Baseline</div>
+        </div>
+        <button id="close-tl-dialog-btn" class="btn-dialog-close" type="button" aria-label="Close TruthLens detail dialog">✕</button>
+      </div>
+
+      <div class="dialog-body">
+        <div class="tl-dialog-section" id="tl-dialog-chart-section">
+          <h3 class="schema-section-title" id="tl-dialog-chart-title">Supporting Visualization</h3>
+          <div class="tl-dialog-chart-wrap">
+            <canvas id="truthlens-detail-chart"></canvas>
+          </div>
+        </div>
+
+        <h3 class="schema-section-title" style="margin-top:1.15rem;">Filtered Source Dataset Records</h3>
+        <div class="schema-table-wrapper" id="tl-dialog-source-wrapper">
+          <table class="schema-table" id="tl-dialog-source-table">
+            <thead id="tl-dialog-source-head"></thead>
+            <tbody id="tl-dialog-source-body"></tbody>
+          </table>
+        </div>
+
+        <h3 class="schema-section-title" style="margin-top:1.15rem;">Verifiable Evidence Table (Traced to Dataset)</h3>
+        <div class="schema-table-wrapper" id="tl-dialog-table-wrapper">
+          <table class="schema-table" id="tl-dialog-evidence-table">
+            <thead id="tl-dialog-table-head"></thead>
+            <tbody id="tl-dialog-table-body"></tbody>
+          </table>
+        </div>
+
+        <div class="tl-dialog-ai-box" id="tl-dialog-ai-explanation"></div>
+
+        <div class="tl-dialog-two-col">
+          <div class="tl-dialog-section">
+            <h3 class="schema-section-title">What Happened &amp; Supporting Numerical Evidence</h3>
+            <p id="tl-dialog-what" class="tl-dialog-prose"></p>
+            <div id="tl-dialog-evidence-box" class="tl-evidence-callout"></div>
+            <h3 class="schema-section-title" style="margin-top:1rem;">Why This Finding Matters</h3>
+            <p id="tl-dialog-why" class="tl-dialog-prose"></p>
+          </div>
+        </div>
+
+        <div class="tl-dialog-two-col" style="margin-top:1.15rem;">
+          <div class="tl-dialog-section">
+            <h3 class="schema-section-title">Candidate Explanations (Explicitly Labeled as Hypotheses)</h3>
+            <ul id="tl-dialog-hypotheses" class="tl-list-styled"></ul>
+          </div>
+          <div class="tl-dialog-section">
+            <h3 class="schema-section-title">Recommended Next Investigations</h3>
+            <ul id="tl-dialog-investigations" class="tl-list-styled"></ul>
+          </div>
+        </div>
+
+        <h3 class="schema-section-title" style="margin-top:1.15rem;">Traceability Audit Trail (Columns &amp; Exact Calculations)</h3>
+        <div id="tl-dialog-audit" class="tl-audit-box"></div>
+      </div>
+
+      <div class="dialog-footer">
+        <button id="tl-dialog-close-footer-btn" class="btn-primary" type="button">Close Evidence Inspector</button>
+      </div>
+    </div>
+  </dialog>
 
   <!-- Schema & Raw Data Preview Dialog / Modal -->
   <dialog id="schema-dialog" class="schema-dialog" aria-labelledby="schema-dialog-title">
@@ -468,6 +811,6 @@
   <!-- Global Toast Notification -->
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/dashboard.js?v=20261101a"></script>
+  <script src="/static/dashboard.js?v=20261110h"></script>
 </body>
 </html>

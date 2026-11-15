@@ -67,6 +67,8 @@ class OutlierRecord(BaseModel):
     row_index: int = Field(ge=0, description="0-indexed row position in the dataset")
     value: float = Field(description="Observed outlier value")
     score: float = Field(description="Distance metric (IQR distance or Z-score value)")
+    z_score: float | None = Field(default=None, description="Signed Z-score relative to column mean and std")
+    row_data: dict[str, Any] = Field(default_factory=dict, description="Full row dictionary for contextual inspection")
 
 
 class AnomalyDetectionResponse(BaseModel):
@@ -82,4 +84,5 @@ class AnomalyDetectionResponse(BaseModel):
     outlier_percentage: float = Field(ge=0.0, le=100.0, description="Percentage of values identified as outliers")
     lower_bound: float = Field(description="Computed lower threshold boundary")
     upper_bound: float = Field(description="Computed upper threshold boundary")
+    column_mean: float | None = Field(default=None, description="Mean of the analyzed numeric column")
     outliers: list[OutlierRecord] = Field(default_factory=list, description="Detected outlier records")
