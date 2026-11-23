@@ -6,15 +6,28 @@ environment variables take precedence over values in ``.env``. Use
 ``get_settings()`` (or the shared ``settings`` alias) to access configuration.
 """
 
+import os
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_ENV_FILE = _REPO_ROOT / ".env"
+
+
+def _default_data_dir() -> Path:
+    """Return the dataset storage directory.
+
+    Serverless platforms such as Vercel mount the deployment bundle read-only,
+    so datasets are written to the writable temp directory there instead.
+    """
+    if os.environ.get("VERCEL"):
+        return Path(tempfile.gettempdir()) / "insightiq-data"
+    return _REPO_ROOT / "data"
 
 
 class Settings(BaseSettings):
@@ -37,7 +50,7 @@ class Settings(BaseSettings):
     max_upload_size_bytes: int = 10 * 1024 * 1024  # 10 MB default
     max_rows_limit: int = 100_000
     max_columns_limit: int = 200
-    data_dir: Path = _REPO_ROOT / "data"
+    data_dir: Path = Field(default_factory=_default_data_dir)
 
     # AI & Intelligence provider settings (optional)
     gemini_api_key: str | None = None
@@ -46,8 +59,6 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _resolve_ai_keys(self) -> "Settings":
-        import os
-
         if not self.gemini_api_key:
             self.gemini_api_key = os.environ.get("GEMINI_API_KEY") or None
         if self.gemini_api_key and not self.ai_enabled:

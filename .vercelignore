@@ -1,0 +1,15 @@
+# Keep the Vercel serverless bundle small: ship only the app and its entry point.
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+tests/
+data/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+requirements-dev.txt
+.git/
+.idea/
+.vscode/
