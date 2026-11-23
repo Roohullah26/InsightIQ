@@ -1,3 +1,15 @@
+---
+title: InsightIQ
+emoji: 📊
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_port: 7860
+base_path: /dashboard
+pinned: false
+short_description: AI-powered BI dashboard with TruthLens insights
+---
+
 # InsightIQ — AI-Powered Enterprise Business Intelligence Platform
 
 **InsightIQ** is a full-stack, AI-powered Business Intelligence (BI) and automated exploratory data analysis platform built with **FastAPI**, **Pandas**, **NumPy**, **SciPy**, and an interactive **Chart.js** executive web dashboard.

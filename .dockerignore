@@ -1,0 +1,16 @@
+# Keep the image small and free of local secrets / generated data.
+.git/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+data/
+tests/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.vercel/
+.idea/
+.vscode/
+requirements-dev.txt
