@@ -1,3 +1,23 @@
+[project]
+name = "insightiq"
+version = "1.0.0"
+description = "AI-powered enterprise Business Intelligence and automated EDA platform"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi==0.156.7",
+    "uvicorn[standard]==0.54.0",
+    "pydantic==2.14.1",
+    "pydantic-settings==2.16.1",
+    "python-multipart==0.0.32",
+    "pandas==3.0.6",
+    "numpy>=1.26.0",
+    "scipy>=1.11.0",
+    "httpx==0.28.1",
+]
+
+[tool.vercel.fastapi.static]
+cdn = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
