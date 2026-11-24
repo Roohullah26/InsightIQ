@@ -1,6 +1,6 @@
 """Dataset ingestion and profiling endpoints for API v1."""
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
 
 from app.core.config import Settings, get_settings
 from app.schemas.dataset import (
@@ -32,6 +32,7 @@ def _get_active_settings(request: Request) -> Settings:
 async def upload_dataset(
     request: Request,
     file: UploadFile = File(..., description="CSV file to upload and profile"),
+    dataset_id: str | None = Form(default=None, description="Optional hex dataset ID for deterministic serverless re-hydration"),
 ) -> DatasetUploadResponse:
     """Validate, ingest, and profile an uploaded CSV file."""
     settings = _get_active_settings(request)
@@ -49,6 +50,7 @@ async def upload_dataset(
             file_bytes=content,
             filename=file.filename,
             settings=settings,
+            dataset_id=dataset_id,
         )
     except DatasetValidationError as err:
         raise HTTPException(

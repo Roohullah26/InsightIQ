@@ -162,8 +162,11 @@ class DatasetService:
         file_bytes: bytes,
         filename: str,
         settings: Settings,
+        dataset_id: str | None = None,
     ) -> DatasetUploadResponse:
         """Validate, decode, profile, and persist an uploaded CSV file."""
+        if dataset_id is not None and not _SAFE_DATASET_ID_RE.match(dataset_id):
+            raise DatasetValidationError("Invalid dataset_id format.")
         # 1. Validation checks
         if not file_bytes or len(file_bytes.strip()) == 0:
             raise DatasetValidationError("Uploaded file is empty.")
@@ -208,7 +211,7 @@ class DatasetService:
             )
 
         # 3. Identifiers and persistence paths
-        dataset_id = uuid.uuid4().hex
+        dataset_id = dataset_id or uuid.uuid4().hex
         uploaded_at = datetime.now(timezone.utc).isoformat()
         storage_dir = Path(settings.data_dir)
         storage_dir.mkdir(parents=True, exist_ok=True)

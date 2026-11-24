@@ -121,3 +121,19 @@ def test_delete_dataset_endpoint(app_with_temp_data):
     # Subsequent DELETE returns 404
     del_again = client.delete(f"/api/v1/datasets/{ds_id}")
     assert del_again.status_code == 404
+
+
+def test_upload_with_explicit_dataset_id(app_with_temp_data):
+    """Verify deterministic dataset_id upload for serverless re-hydration and reject unsafe IDs."""
+    client = TestClient(app_with_temp_data)
+    fixed_id = "0123456789abcdef0123456789abcdef"
+
+    files = {"file": ("rehydrate.csv", io.BytesIO(b"a,b\n1,2\n"), "text/csv")}
+    res = client.post("/api/v1/datasets/upload", files=files, data={"dataset_id": fixed_id})
+    assert res.status_code == 201
+    assert res.json()["summary"]["dataset_id"] == fixed_id
+
+    bad_files = {"file": ("bad.csv", io.BytesIO(b"a,b\n1,2\n"), "text/csv")}
+    bad_res = client.post("/api/v1/datasets/upload", files=bad_files, data={"dataset_id": "../evil"})
+    assert bad_res.status_code == 400
+

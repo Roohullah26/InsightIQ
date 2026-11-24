@@ -265,12 +265,89 @@ function collapseDropzone() {
   if (label) label.textContent = '+ Upload CSV';
 }
 
+const _datasetSourceCache = new Map();
+const _datasetRestoreInFlight = new Map();
+const _SESSION_CACHE_PREFIX = 'insightiq_csv_';
+
+function cacheDatasetSource(datasetId, filename, csvText) {
+  if (!datasetId || !filename || typeof csvText !== 'string') return;
+  const entry = { filename, csvText };
+  _datasetSourceCache.set(datasetId, entry);
+  if (csvText.length <= 3_500_000) {
+    try {
+      sessionStorage.setItem(`${_SESSION_CACHE_PREFIX}${datasetId}`, JSON.stringify(entry));
+    } catch {
+      // Ignore storage quota errors
+    }
+  }
+}
+
+function getCachedDatasetSource(datasetId) {
+  if (!datasetId) return null;
+  if (_datasetSourceCache.has(datasetId)) {
+    return _datasetSourceCache.get(datasetId);
+  }
+  try {
+    const raw = sessionStorage.getItem(`${_SESSION_CACHE_PREFIX}${datasetId}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.filename && typeof parsed.csvText === 'string') {
+        _datasetSourceCache.set(datasetId, parsed);
+        return parsed;
+      }
+    }
+  } catch {
+    // Ignore storage parse errors
+  }
+  return null;
+}
+
+async function ensureDatasetOnServer(datasetId) {
+  const cached = getCachedDatasetSource(datasetId);
+  if (!cached) return false;
+  if (_datasetRestoreInFlight.has(datasetId)) {
+    return _datasetRestoreInFlight.get(datasetId);
+  }
+
+  const restorePromise = (async () => {
+    try {
+      const formData = new FormData();
+      const blob = new Blob([cached.csvText], { type: 'text/csv' });
+      formData.append('file', new File([blob], cached.filename, { type: 'text/csv' }));
+      formData.append('dataset_id', datasetId);
+      const res = await fetch('/api/v1/datasets/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      _datasetRestoreInFlight.delete(datasetId);
+    }
+  })();
+
+  _datasetRestoreInFlight.set(datasetId, restorePromise);
+  return restorePromise;
+}
+
+async function datasetFetch(datasetId, url, options = {}) {
+  let res = await fetch(url, options);
+  for (let attempt = 0; attempt < 2 && res.status === 404; attempt++) {
+    const restored = await ensureDatasetOnServer(datasetId);
+    if (!restored) break;
+    res = await fetch(url, options);
+  }
+  return res;
+}
+
 async function uploadFile(file) {
   if (!file.name.toLowerCase().endsWith('.csv')) {
     alert('Please upload a valid CSV file.');
     return;
   }
 
+  const csvText = await file.text();
   const formData = new FormData();
   formData.append('file', file);
 
@@ -287,6 +364,7 @@ async function uploadFile(file) {
     }
 
     const data = await res.json();
+    cacheDatasetSource(data.summary.dataset_id, file.name, csvText);
     showToast(`Dataset "${file.name}" uploaded successfully!`);
     await refreshDatasetList(data.summary.dataset_id);
     collapseDropzone();
@@ -427,19 +505,19 @@ async function loadDataset(datasetId) {
 
   try {
     // 1. Fetch Profile
-    const profileRes = await fetch(`/api/v1/datasets/${datasetId}`);
+    const profileRes = await datasetFetch(datasetId, `/api/v1/datasets/${datasetId}`);
     currentProfile = await profileRes.json();
 
     // 2. Fetch Insights
-    const insightsRes = await fetch(`/api/v1/insights/${datasetId}`);
+    const insightsRes = await datasetFetch(datasetId, `/api/v1/insights/${datasetId}`);
     currentInsights = await insightsRes.json();
 
     // 3. Fetch Correlations
-    const corrRes = await fetch(`/api/v1/analytics/correlations/${datasetId}`);
+    const corrRes = await datasetFetch(datasetId, `/api/v1/analytics/correlations/${datasetId}`);
     currentCorrelations = corrRes.ok ? await corrRes.json() : null;
 
     // 4. Fetch TruthLens Evidence-Based Intelligence Report
-    const tlRes = await fetch(`/api/v1/truthlens/${datasetId}`);
+    const tlRes = await datasetFetch(datasetId, `/api/v1/truthlens/${datasetId}`);
     currentTruthLens = tlRes.ok ? await tlRes.json() : null;
     activeTruthLensScenario = 'active';
 
@@ -471,7 +549,7 @@ async function loadQuickMetricChips(datasetId) {
   if (!container) return;
 
   try {
-    const res = await fetch(`/api/v1/query/${datasetId}/suggestions`);
+    const res = await datasetFetch(datasetId, `/api/v1/query/${datasetId}/suggestions`);
     if (!res.ok) return;
     const data = await res.json();
     if (data.chips && data.chips.length > 0) {
@@ -2027,7 +2105,7 @@ async function runAggregation() {
   const requestedFuncs = func === 'count' ? ['count'] : [func, 'count'];
 
   try {
-    const res = await fetch(`/api/v1/analytics/aggregate/${activeDatasetId}`, {
+    const res = await datasetFetch(activeDatasetId, `/api/v1/analytics/aggregate/${activeDatasetId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2039,7 +2117,10 @@ async function runAggregation() {
       }),
     });
 
-    if (!res.ok) return;
+    if (!res.ok) {
+      console.warn('Aggregation request failed:', res.status);
+      return;
+    }
     const aggData = await res.json();
     const valueKey = `${metric}_${func}`;
     let records = aggData.data || [];
@@ -2930,7 +3011,7 @@ async function scanAnomalies() {
   const threshold = method === 'zscore' ? '2.5' : '1.5';
 
   try {
-    const res = await fetch(`/api/v1/analytics/outliers/${activeDatasetId}?column=${encodeURIComponent(col)}&method=${method}&threshold=${threshold}`);
+    const res = await datasetFetch(activeDatasetId, `/api/v1/analytics/outliers/${activeDatasetId}?column=${encodeURIComponent(col)}&method=${method}&threshold=${threshold}`);
     if (!res.ok) throw new Error('Outlier detection failed');
     const data = await res.json();
 
@@ -3491,7 +3572,7 @@ async function sendChatMessage() {
   appendMessage('bot', `<div class="loading-spinner"></div>`, botMsgId);
 
   try {
-    const res = await fetch(`/api/v1/query/${activeDatasetId}`, {
+    const res = await datasetFetch(activeDatasetId, `/api/v1/query/${activeDatasetId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: query }),
@@ -3597,7 +3678,7 @@ function setupTruthLens() {
 
         if (scenarioKey === 'active') {
           if (activeDatasetId) {
-            const tlRes = await fetch(`/api/v1/truthlens/${activeDatasetId}`);
+            const tlRes = await datasetFetch(activeDatasetId, `/api/v1/truthlens/${activeDatasetId}`);
             if (tlRes.ok) {
               currentTruthLens = await tlRes.json();
               activeTruthLensFilter = 'all';
